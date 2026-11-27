@@ -38,10 +38,15 @@ async function proxyProviderApi(
       body,
       cache: "no-store",
     });
-    const text = await upstream.text();
-    return new NextResponse(text, {
+    const bytes = await upstream.arrayBuffer();
+    const outHeaders = new Headers({
+      "content-type": upstream.headers.get("content-type") ?? "application/json",
+    });
+    const disposition = upstream.headers.get("content-disposition");
+    if (disposition) outHeaders.set("content-disposition", disposition);
+    return new NextResponse(bytes, {
       status: upstream.status,
-      headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" },
+      headers: outHeaders,
     });
   } catch {
     return NextResponse.json({ error: "Unable to reach clinical workqueue API" }, { status: 502 });

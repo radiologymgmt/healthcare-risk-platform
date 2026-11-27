@@ -32,6 +32,8 @@ interface AnalyticsPayload {
   top_cpt_codes: Array<{ cpt_code: string; count: number }>;
   recent_sessions: Array<{
     session_id: string;
+    patient_name?: string;
+    mrn?: string | null;
     channel: string;
     status: string;
     triggered_count: number;
@@ -201,7 +203,7 @@ export function AnalyticsAndPdf() {
               Triggered Pathways &amp; Order Conversion by Specialty
             </CardTitle>
             <CardDescription>
-              Live aggregation across all 54 clinical assessment models.
+              Navy track = Triggered pathways &middot; Teal fill = Orders approved/dispatched.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -210,22 +212,34 @@ export function AnalyticsAndPdf() {
                 No triggered pathways recorded yet. Evaluate a synthetic session to populate charts.
               </p>
             ) : (
-              data.by_specialty.map((row) => (
-                <div key={row.specialty} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-foreground">{row.specialty}</span>
-                    <span className="font-mono text-muted-foreground">
-                      {row.triggered_count} triggered &middot; {row.ordered_count} ordered
-                    </span>
+              data.by_specialty.map((row) => {
+                const convPct =
+                  row.triggered_count > 0
+                    ? Math.round((row.ordered_count / row.triggered_count) * 100)
+                    : 0;
+                return (
+                  <div key={row.specialty} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-foreground">{row.specialty}</span>
+                      <span className="font-mono text-muted-foreground">
+                        {row.triggered_count} triggered &middot; {row.ordered_count} ordered (
+                        {convPct}%)
+                      </span>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-secondary overflow-hidden">
+                      <div
+                        className="h-full bg-[#0b2545]/25 rounded-full overflow-hidden transition-all"
+                        style={{ width: `${(row.triggered_count / maxSpecialtyCount) * 100}%` }}
+                      >
+                        <div
+                          className="h-full bg-[#127080] transition-all"
+                          style={{ width: `${convPct}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="h-2.5 w-full rounded-full bg-secondary overflow-hidden flex">
-                    <div
-                      className="h-full bg-primary transition-all"
-                      style={{ width: `${(row.triggered_count / maxSpecialtyCount) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </CardContent>
         </Card>
@@ -286,12 +300,15 @@ export function AnalyticsAndPdf() {
               id="pdf-session-select"
               value={selectedSessionId}
               onChange={(e) => setSelectedSessionId(e.target.value)}
-              className="h-8 rounded-md border border-input bg-card px-2.5 font-mono text-xs min-w-[280px]"
+              className="h-9 rounded-md border border-input bg-card px-2.5 text-xs min-w-[300px]"
             >
               {data?.recent_sessions.length ? (
                 data.recent_sessions.map((s) => (
                   <option key={s.session_id} value={s.session_id}>
-                    {s.session_id.slice(0, 8)} · {s.channel} · {s.triggered_count} pathways
+                    {s.patient_name ? s.patient_name : s.session_id.slice(0, 8)}
+                    {s.mrn ? ` (${s.mrn})` : ""} · {s.triggered_count}{" "}
+                    {s.triggered_count === 1 ? "pathway" : "pathways"} ·{" "}
+                    {new Date(s.started_at).toLocaleDateString()}
                   </option>
                 ))
               ) : (

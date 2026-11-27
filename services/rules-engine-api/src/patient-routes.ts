@@ -11,6 +11,14 @@ import { evaluateClinicalRules, type ClinicalRuleRecord } from "./evaluator.js";
 import { writeAuditLog } from "./audit.js";
 import { isDemoModeEnabled } from "./demo-mode.js";
 
+const PatientConsentPayloadSchema = z.object({
+  consent_version: z.string().min(1).max(32).default("v1.0"),
+  acknowledged_data_sharing: z.boolean(),
+  acknowledged_ai_clinician_review: z.boolean(),
+  acknowledged_emergency_911: z.boolean(),
+  typed_signature: z.string().max(200).optional(),
+});
+
 const CreatePatientSessionSchema = z.object({
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
@@ -20,11 +28,13 @@ const CreatePatientSessionSchema = z.object({
   phone: z.string().max(30).optional().or(z.literal("")),
   zip_code: z.string().min(5).max(15),
   selected_modules: z.array(z.string().min(1)).default(["all"]),
+  consent: PatientConsentPayloadSchema.optional(),
 });
 
 const InsuranceVerifySchema = z.object({
   patient_id: z.string().uuid(),
   payer_id: z.string().min(2).max(100),
+  payer_code: z.string().max(64).optional(),
   payer_name: z.string().min(2).max(150).optional(),
   member_id: z.string().min(3).max(100),
 });
@@ -228,6 +238,57 @@ export function createPatientAndMagicLinkRouter(pool: Pool, logger: HipaaLogger)
   const router = Router();
 
   // =========================================================================
+  // PUBLIC GOVERNANCE ENDPOINTS (PATIENT RELEASE & ACCEPTED PAYERS)
+  // =========================================================================
+
+  router.get("/public/release", async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const settingsRes = await pool.query<{ setting_key: string; value_json: Record<string, unknown> }>(
+        `SELECT setting_key, value_json FROM platform_settings WHERE setting_key IN ('patient_release_consent', 'portal_branding')`,
+      );
+      const byKey = new Map(settingsRes.rows.map((r) => [r.setting_key, r.value_json]));
+      res.json({
+        release: byKey.get("patient_release_consent") ?? {
+          consent_version: "v1.0",
+          title: "Patient Release, AI Processing Disclosure & Safety Notice",
+          organization_name: "RadManagement LLC",
+          data_sharing_statement:
+            "I authorize RadManagement LLC and its participating healthcare partners, referring physicians, and radiology care coordinators to receive, securely store, and review the health information I submit for preventive risk assessment and imaging coordination in accordance with HIPAA.",
+          ai_clinician_statement:
+            "I understand that my assessment responses and clinical documents may be initially processed by HIPAA-compliant automated AI tools to organize clinical risk factors, and that all screening recommendations and imaging orders are reviewed and approved by licensed clinicians.",
+          emergency_911_headline: "Not for Medical Emergencies — Call 911 for Acute Symptoms",
+          emergency_911_body:
+            "If you are experiencing a sudden severe headache, tearing chest or back pain, shortness of breath, sudden weakness or trouble speaking, or any other acute or emergent symptoms, STOP immediately and call 911, go to the nearest Emergency Room, or speak directly with your doctor right away.",
+          require_typed_signature: true,
+        },
+        branding: byKey.get("portal_branding") ?? {
+          organization_name: "RadManagement LLC",
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/payers/accepted", async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const payersRes = await pool.query(
+        `
+        SELECT id, payer_code, stedi_trading_partner_id, payer_name, acceptance_status,
+               accepted_plan_types, excluded_plan_keywords, requires_pcp_referral,
+               prior_auth_modalities, self_pay_available, patient_guidance_note, sort_order
+        FROM accepted_payers
+        WHERE is_active = TRUE
+        ORDER BY sort_order ASC, payer_name ASC
+        `,
+      );
+      res.json({ payers: payersRes.rows });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // =========================================================================
   // COMPONENT 3: PATIENT WEB PORTAL (SESSION, STEDI INSURANCE, SCHEDULING)
   // =========================================================================
 
@@ -272,6 +333,47 @@ export function createPatientAndMagicLinkRouter(pool: Pool, logger: HipaaLogger)
           );
           const sessionId = sRes.rows[0]!.id;
 
+          if (d.consent) {
+            const consentHash = sha256Hex(
+              JSON.stringify({
+                v: d.consent.consent_version,
+                s: d.consent.acknowledged_data_sharing,
+                a: d.consent.acknowledged_ai_clinician_review,
+                e: d.consent.acknowledged_emergency_911,
+              }),
+            );
+            await client.query(
+              `
+              INSERT INTO patient_consents (
+                patient_id, session_id, consent_version, consent_hash,
+                acknowledged_data_sharing, acknowledged_ai_clinician_review,
+                acknowledged_emergency_911, typed_signature, ip_address
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+              `,
+              [
+                patientId,
+                sessionId,
+                d.consent.consent_version,
+                consentHash,
+                d.consent.acknowledged_data_sharing,
+                d.consent.acknowledged_ai_clinician_review,
+                d.consent.acknowledged_emergency_911,
+                d.consent.typed_signature?.trim() || null,
+                extractIp(req),
+              ],
+            );
+            await writeAuditLog(client, {
+              actor_id: `PATIENT:${patientId}`,
+              actor_role: "PATIENT",
+              action: "ACCEPT_PATIENT_RELEASE",
+              resource_type: "patient_consent",
+              resource_id: sessionId,
+              ip_address: extractIp(req),
+              metadata: { consent_version: d.consent.consent_version },
+            });
+          }
+
           await writeAuditLog(client, {
             actor_id: `PATIENT:${patientId}`,
             actor_role: "PATIENT",
@@ -298,9 +400,9 @@ export function createPatientAndMagicLinkRouter(pool: Pool, logger: HipaaLogger)
   );
 
   /**
-   * POST /api/v1/insurance/verify (Section 5 — Comp 3)
-   * Proxies real-time X12 270/271 eligibility check to Stedi API (or synthetic mock)
-   * and caches summary in `patients.insurance_status`.
+   * POST /api/v1/insurance/verify (Section 5 — Comp 3 + 2-Layer Organization Acceptance)
+   * Layer 1: Checks RadManagement LLC's Admin-managed `accepted_payers` directory.
+   * Layer 2: Runs real-time Stedi X12 270/271 eligibility check and combines network status.
    */
   router.post(
     "/insurance/verify",
@@ -313,29 +415,92 @@ export function createPatientAndMagicLinkRouter(pool: Pool, logger: HipaaLogger)
         }
         const d = parsed.data;
 
-        const pRes = await pool.query<{
-          id: string;
-          first_name: string;
-          last_name: string;
-          dob: Date | string;
-        }>(`SELECT id, first_name, last_name, dob FROM patients WHERE id = $1`, [d.patient_id]);
+        const [pRes, payerDirRes] = await Promise.all([
+          pool.query<{
+            id: string;
+            first_name: string;
+            last_name: string;
+            dob: Date | string;
+          }>(`SELECT id, first_name, last_name, dob FROM patients WHERE id = $1`, [d.patient_id]),
+          pool.query<{
+            payer_code: string;
+            payer_name: string;
+            acceptance_status: "IN_NETWORK" | "OUT_OF_NETWORK_ACCEPTED" | "NOT_ACCEPTED";
+            accepted_plan_types: string[];
+            excluded_plan_keywords: string[];
+            requires_pcp_referral: boolean;
+            prior_auth_modalities: string[];
+            self_pay_available: boolean;
+            patient_guidance_note: string | null;
+          }>(
+            `
+            SELECT payer_code, payer_name, acceptance_status, accepted_plan_types,
+                   excluded_plan_keywords, requires_pcp_referral, prior_auth_modalities,
+                   self_pay_available, patient_guidance_note
+            FROM accepted_payers
+            WHERE is_active = TRUE
+              AND (payer_code = $1 OR stedi_trading_partner_id = $2)
+            ORDER BY CASE WHEN payer_code = $1 THEN 0 ELSE 1 END ASC
+            LIMIT 1
+            `,
+            [d.payer_code ?? "", d.payer_id],
+          ),
+        ]);
 
         if (pRes.rowCount === 0) {
           res.status(404).json({ error: "Patient not found" });
           return;
         }
         const pat = pRes.rows[0]!;
+        const orgPayer = payerDirRes.rows[0] ?? null;
         const dobStr =
           pat.dob instanceof Date ? pat.dob.toISOString().slice(0, 10) : String(pat.dob).slice(0, 10);
 
-        const eligibility = await runStediEligibilityCheck({
+        const baseEligibility = await runStediEligibilityCheck({
           payer_id: d.payer_id,
-          payer_name: d.payer_name,
+          payer_name: orgPayer?.payer_name ?? d.payer_name,
           member_id: d.member_id,
           first_name: pat.first_name,
           last_name: pat.last_name,
           dob: dobStr,
         });
+
+        // Combine Layer 1 (RadManagement LLC Accepted Payers Registry) + Layer 2 (Stedi X12 271)
+        const planLower = baseEligibility.plan_name.toLowerCase();
+        const excludedHit = (orgPayer?.excluded_plan_keywords ?? []).some((kw) =>
+          planLower.includes(kw.toLowerCase()),
+        );
+
+        let organizationAcceptance:
+          | "ACCEPTED_IN_NETWORK"
+          | "ACCEPTED_REFERRAL_REQUIRED"
+          | "OUT_OF_NETWORK_SELF_PAY"
+          | "NOT_ACCEPTED_SELF_PAY"
+          | "COVERAGE_INACTIVE" = "ACCEPTED_IN_NETWORK";
+
+        if (!baseEligibility.eligible) {
+          organizationAcceptance = "COVERAGE_INACTIVE";
+        } else if (!orgPayer || orgPayer.acceptance_status === "NOT_ACCEPTED" || excludedHit) {
+          organizationAcceptance = "NOT_ACCEPTED_SELF_PAY";
+        } else if (orgPayer.acceptance_status === "OUT_OF_NETWORK_ACCEPTED") {
+          organizationAcceptance = "OUT_OF_NETWORK_SELF_PAY";
+        } else if (orgPayer.requires_pcp_referral) {
+          organizationAcceptance = "ACCEPTED_REFERRAL_REQUIRED";
+        } else {
+          organizationAcceptance = "ACCEPTED_IN_NETWORK";
+        }
+
+        const eligibility = {
+          ...baseEligibility,
+          organization_acceptance: organizationAcceptance,
+          network_status: orgPayer?.acceptance_status ?? "UNLISTED",
+          requires_pcp_referral: orgPayer?.requires_pcp_referral ?? false,
+          prior_auth_modalities: orgPayer?.prior_auth_modalities ?? ["MRI", "CT", "PET"],
+          self_pay_available: orgPayer?.self_pay_available ?? true,
+          patient_guidance_note:
+            orgPayer?.patient_guidance_note ??
+            "This insurance carrier is not listed in our standard in-network directory. Our team will verify benefits or provide transparent self-pay options before any exam.",
+        };
 
         await pool.query(
           `
@@ -359,13 +524,15 @@ export function createPatientAndMagicLinkRouter(pool: Pool, logger: HipaaLogger)
           metadata: {
             payer_id: d.payer_id,
             coverage_status: eligibility.coverage_status,
+            organization_acceptance: organizationAcceptance,
             provider: eligibility.provider,
           },
         });
 
-        logger.info("Verified Stedi X12 270/271 eligibility", {
+        logger.info("Verified 2-layer Stedi X12 270/271 & organization acceptance", {
           patient_id: d.patient_id,
           coverage_status: eligibility.coverage_status,
+          organization_acceptance: organizationAcceptance,
         });
 
         res.json({ insurance_status: eligibility });

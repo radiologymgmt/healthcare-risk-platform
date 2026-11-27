@@ -4,6 +4,11 @@ import type { Pool } from "pg";
 import { createPool } from "./client.js";
 import { SEED_QUESTIONS } from "./seed/questions.js";
 import { SEED_CLINICAL_RULES } from "./seed/clinical-rules.js";
+import {
+  SEED_ACCEPTED_PAYERS,
+  SEED_PLATFORM_SETTINGS,
+  SEED_USERS,
+} from "./seed/governance.js";
 
 export interface SeedResult {
   questionsUpserted: number;
@@ -11,7 +16,8 @@ export interface SeedResult {
 }
 
 /**
- * Idempotently seeds the shared `questions` registry and all 54 `clinical_rules`.
+ * Idempotently seeds the shared `questions` registry, all 54 `clinical_rules`,
+ * and default governance tables (users, accepted_payers, platform_settings, initial restore point).
  */
 export async function seedDatabase(pool: Pool): Promise<SeedResult> {
   const client = await pool.connect();
@@ -109,6 +115,89 @@ export async function seedDatabase(pool: Pool): Promise<SeedResult> {
           r.prior_auth_rationale_template,
         ],
       );
+    }
+
+    // Seed governance tables idempotently (only when migration 0002 tables exist)
+    const govTablesRes = await client.query<{ exists: boolean }>(
+      `SELECT to_regclass('public.users') IS NOT NULL AS exists`,
+    );
+    if (govTablesRes.rows[0]?.exists) {
+      for (const u of SEED_USERS) {
+        await client.query(
+          `
+          INSERT INTO users (email, full_name, role, npi_number, specialty, is_active, created_by)
+          VALUES ($1, $2, $3, $4, $5, TRUE, 'system-seed')
+          ON CONFLICT (email) DO NOTHING
+          `,
+          [u.email, u.full_name, u.role, u.npi_number, u.specialty],
+        );
+      }
+
+      for (const p of SEED_ACCEPTED_PAYERS) {
+        await client.query(
+          `
+          INSERT INTO accepted_payers (
+            payer_code, stedi_trading_partner_id, payer_name, acceptance_status,
+            accepted_plan_types, excluded_plan_keywords, requires_pcp_referral,
+            prior_auth_modalities, self_pay_available, patient_guidance_note, sort_order
+          )
+          VALUES ($1, $2, $3, $4, $5::text[], $6::text[], $7, $8::text[], $9, $10, $11)
+          ON CONFLICT (payer_code) DO NOTHING
+          `,
+          [
+            p.payer_code,
+            p.stedi_trading_partner_id,
+            p.payer_name,
+            p.acceptance_status,
+            p.accepted_plan_types,
+            p.excluded_plan_keywords,
+            p.requires_pcp_referral,
+            p.prior_auth_modalities,
+            p.self_pay_available,
+            p.patient_guidance_note,
+            p.sort_order,
+          ],
+        );
+      }
+
+      for (const s of SEED_PLATFORM_SETTINGS) {
+        await client.query(
+          `
+          INSERT INTO platform_settings (setting_key, category, label, description, value_json, version, updated_by)
+          VALUES ($1, $2, $3, $4, $5::jsonb, 1, 'system-seed')
+          ON CONFLICT (setting_key) DO NOTHING
+          `,
+          [s.setting_key, s.category, s.label, s.description, JSON.stringify(s.value_json)],
+        );
+      }
+
+      const snapCountRes = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM config_snapshots`,
+      );
+      if (Number(snapCountRes.rows[0]?.count ?? 0) === 0) {
+        const [qRows, rRows, pRows, sRows] = await Promise.all([
+          client.query("SELECT * FROM questions ORDER BY sort_order ASC"),
+          client.query("SELECT * FROM clinical_rules ORDER BY rule_code ASC"),
+          client.query("SELECT * FROM accepted_payers ORDER BY sort_order ASC"),
+          client.query("SELECT * FROM platform_settings ORDER BY setting_key ASC"),
+        ]);
+        await client.query(
+          `
+          INSERT INTO config_snapshots (label, notes, trigger_type, created_by, payload)
+          VALUES ($1, $2, 'AUTO_SEED', 'system-seed', $3::jsonb)
+          `,
+          [
+            "Factory Baseline Snapshot (Initial Seed)",
+            "Automatic baseline restore point created on initial platform seed (117 questions, 54 clinical rules, accepted payers, and platform settings).",
+            JSON.stringify({
+              questions: qRows.rows,
+              clinical_rules: rRows.rows,
+              accepted_payers: pRows.rows,
+              platform_settings: sRows.rows,
+            }),
+          ],
+        );
+      }
     }
 
     await client.query("COMMIT");

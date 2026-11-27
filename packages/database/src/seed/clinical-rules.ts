@@ -566,7 +566,7 @@ export const SEED_CLINICAL_RULES: readonly SeedClinicalRule[] = [
     logic_expression: {
       ">=": [{ var: "derived.add_rs_score" }, 2],
     },
-    recommended_intervention: "STAT Emergency Department Transfer & CTA Chest/Abdomen/Pelvis with Contrast (Rule Out Aortic Dissection)",
+    recommended_intervention: "HIGH PRIORITY — Urgent Emergency Department Transfer & CTA Chest/Abdomen/Pelvis with Contrast (Rule Out Aortic Dissection)",
     cpt_codes: ["71275", "74174"],
     icd10_codes: ["I71.00", "R07.9"],
     prior_auth_rationale_template:
@@ -631,7 +631,7 @@ export const SEED_CLINICAL_RULES: readonly SeedClinicalRule[] = [
         { ">=": [{ var: "derived.abcd2_score" }, 4] },
       ],
     },
-    recommended_intervention: "STAT Urgent Stroke/ED Evaluation, Brain MRI/MRA & Carotid Duplex Ultrasound",
+    recommended_intervention: "HIGH PRIORITY — Urgent Stroke/ED Evaluation, Brain MRI/MRA & Carotid Duplex Ultrasound",
     cpt_codes: ["70551", "70544", "93880"],
     icd10_codes: ["G45.9"],
     prior_auth_rationale_template:
@@ -656,7 +656,7 @@ export const SEED_CLINICAL_RULES: readonly SeedClinicalRule[] = [
         },
       ],
     },
-    recommended_intervention: "STAT Urgent Neuroimaging (CT Head Non-Contrast / MRI Brain) & Acute Neurology Triage",
+    recommended_intervention: "HIGH PRIORITY — Urgent Neuroimaging (CT Head Non-Contrast / MRI Brain) & Acute Neurology Triage",
     cpt_codes: ["70450", "70553"],
     icd10_codes: ["R51.9", "G44.53"],
     prior_auth_rationale_template:
@@ -778,7 +778,7 @@ export const SEED_CLINICAL_RULES: readonly SeedClinicalRule[] = [
         { ">=": [{ var: "derived.wells_dvt_pe_score" }, 2] },
       ],
     },
-    recommended_intervention: "STAT Urgent Lower Extremity Venous Duplex Ultrasound / CT Pulmonary Angiography & D-Dimer",
+    recommended_intervention: "HIGH PRIORITY — Urgent Lower Extremity Venous Duplex Ultrasound / CT Pulmonary Angiography & D-Dimer",
     cpt_codes: ["93971", "71275", "85379"],
     icd10_codes: ["I82.409", "I26.99"],
     prior_auth_rationale_template:
@@ -1096,7 +1096,7 @@ export const SEED_CLINICAL_RULES: readonly SeedClinicalRule[] = [
         { ">=": [{ var: "derived.geneva_pe_score" }, 6] },
       ],
     },
-    recommended_intervention: "STAT CT Pulmonary Angiography (CTPA) & Immediate Anticoagulation Assessment",
+    recommended_intervention: "HIGH PRIORITY — Urgent CT Pulmonary Angiography (CTPA) & Immediate Anticoagulation Assessment",
     cpt_codes: ["71275", "85379"],
     icd10_codes: ["I26.99", "R06.02"],
     prior_auth_rationale_template:

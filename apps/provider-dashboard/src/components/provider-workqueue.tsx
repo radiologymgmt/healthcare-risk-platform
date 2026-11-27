@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   Calendar,
   CalendarPlus,
@@ -10,6 +11,8 @@ import {
   ChevronRight,
   ClipboardCheck,
   Clock,
+  Download,
+  Edit3,
   FileSearch,
   ListTodo,
   Mail,
@@ -20,6 +23,7 @@ import {
   Sparkles,
   XCircle,
 } from "lucide-react";
+import { IndividualAssessmentModal } from "./individual-assessment-modal";
 
 type WorkqueuePriority = "HIGH" | "STANDARD";
 type WorkqueueStatus =
@@ -93,11 +97,17 @@ interface ProvenanceResponseItem {
   question_key: string;
   domain: string;
   label_plain_english: string;
+  input_type?: string;
+  options_json?: Array<{ value: string | number | boolean; label: string }>;
   answer_value: unknown;
+  original_answer_value?: unknown;
   provenance: string;
   confidence_score: number | null;
   source_document_id: string | null;
   source_excerpt: string | null;
+  corrected_by?: string | null;
+  correction_reason?: string | null;
+  corrected_at?: string | null;
 }
 
 interface ClinicalDocItem {
@@ -152,6 +162,7 @@ interface WorkqueueItem {
       eligible?: boolean;
       coverage_status?: string;
       plan_name?: string;
+      organization_acceptance?: string;
     };
   };
   triggered_pathways: TriggeredPathwayItem[];
@@ -168,7 +179,7 @@ interface DispatchedOrder {
   payload: unknown;
 }
 
-function formatUsMeasurement(questionKey: string, answerValue: unknown): string {
+function formatMeasurement(questionKey: string, answerValue: unknown): string {
   if (questionKey === "height_cm" && typeof answerValue === "number" && answerValue > 0) {
     const totalInches = Math.round(answerValue / 2.54);
     const ft = Math.floor(totalInches / 12);
@@ -184,10 +195,16 @@ function formatUsMeasurement(questionKey: string, answerValue: unknown): string 
   return JSON.stringify(answerValue);
 }
 
+const CLINICAL_ACRONYMS = new Set(["MRI", "CT", "LDCT", "DEXA", "CAC", "CTA", "MRA", "US", "PET"]);
+
 function formatVisitType(vt: string): string {
   return vt
     .split("_")
-    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .map((w) => {
+      const upper = w.toUpperCase();
+      if (CLINICAL_ACRONYMS.has(upper)) return upper;
+      return upper.charAt(0) + upper.slice(1).toLowerCase();
+    })
     .join(" ");
 }
 
@@ -407,6 +424,146 @@ export function ProviderWorkqueue({
     }
   }
 
+  // Provider Clinical Power Tools State: Assessment Modal, PDF Export, Inline Answer Correction, Calendar Reschedule
+  const [showAssessmentModal, setShowAssessmentModal] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
+  const [editingRespKey, setEditingRespKey] = useState<string | null>(null);
+  const [respDraft, setRespDraft] = useState<string>("");
+  const [respFeet, setRespFeet] = useState<string>("5");
+  const [respInches, setRespInches] = useState<string>("6");
+  const [respReason, setRespReason] = useState<string>("");
+  const [reschedulingApptId, setReschedulingApptId] = useState<string | null>(null);
+  const [reschedDate, setReschedDate] = useState<string>(() => toDateKey(new Date(Date.now() + 86400000)));
+  const [reschedTime, setReschedTime] = useState<string>("10:00");
+
+  async function downloadClinicalPdf(
+    workqueueId: string,
+    pdfType: "full_clinical_packet" | "patient_summary" | "prior_auth_packet",
+  ) {
+    setDownloadingPdf(pdfType);
+    setError(null);
+    try {
+      const res = await fetch(`/api/provider/${workqueueId}/pdf`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pdf_type: pdfType }),
+      });
+      if (!res.ok) {
+        throw new Error(`PDF export failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `RadManagement_${pdfType}_${workqueueId.slice(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setToast(`Downloaded RadManagement ${pdfType.replace(/_/g, " ")} PDF.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to generate clinical PDF");
+    } finally {
+      setDownloadingPdf(null);
+    }
+  }
+
+  function openResponseEditor(r: ProvenanceResponseItem) {
+    if (editingRespKey === r.question_key) {
+      setEditingRespKey(null);
+      return;
+    }
+    setEditingRespKey(r.question_key);
+    setRespReason(r.correction_reason ?? "");
+    if (r.question_key === "height_cm") {
+      const cm = typeof r.answer_value === "number" && r.answer_value > 0 ? r.answer_value : 167.6;
+      const totalIn = Math.round(cm / 2.54);
+      setRespFeet(String(Math.floor(totalIn / 12)));
+      setRespInches(String(totalIn % 12));
+    } else if (r.question_key === "weight_kg") {
+      const kg = typeof r.answer_value === "number" && r.answer_value > 0 ? r.answer_value : 72.6;
+      setRespDraft(String(Math.round(kg / 0.45359237)));
+    } else {
+      setRespDraft(r.answer_value === null || r.answer_value === undefined ? "" : String(r.answer_value));
+    }
+  }
+
+  async function saveResponseCorrection(workqueueId: string, r: ProvenanceResponseItem, directVal?: unknown) {
+    let nextVal: unknown = directVal !== undefined ? directVal : respDraft;
+    if (directVal === undefined) {
+      if (r.question_key === "height_cm") {
+        nextVal = Math.round(((Number(respFeet) || 0) * 12 + (Number(respInches) || 0)) * 2.54 * 10) / 10;
+      } else if (r.question_key === "weight_kg") {
+        const lbs = Number(respDraft);
+        if (Number.isNaN(lbs) || lbs <= 0) return;
+        nextVal = Math.round(lbs * 0.45359237 * 10) / 10;
+      } else if (r.input_type === "number" || r.input_type === "lab_numeric") {
+        const num = Number(respDraft);
+        if (Number.isNaN(num)) return;
+        nextVal = num;
+      }
+    }
+
+    setBusyAction(true);
+    setError(null);
+    setToast(null);
+    try {
+      const res = await fetch(`/api/provider/${workqueueId}/responses/${r.question_key}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          answer_value: nextVal,
+          correction_reason: respReason.trim() || "Clinician chart verification",
+          re_evaluate: true,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; triggered_pathways_count?: number };
+      if (!res.ok) throw new Error(data.error ?? "Failed to save response correction");
+      setEditingRespKey(null);
+      setToast(
+        `Saved clinician correction & re-evaluated patient pathways (${data.triggered_pathways_count ?? 0} active findings).`,
+      );
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save correction");
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  async function updateAppointment(
+    appointmentId: string,
+    payload: {
+      scheduled_start?: string;
+      scheduled_end?: string;
+      status?: "BOOKED" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+    },
+  ) {
+    setBusyAction(true);
+    setError(null);
+    setToast(null);
+    try {
+      const res = await fetch(`/api/provider/appointments/${appointmentId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed to update appointment");
+      setReschedulingApptId(null);
+      setToast(
+        payload.scheduled_start
+          ? "Appointment rescheduled cleanly."
+          : `Appointment marked ${payload.status ?? "updated"}.`,
+      );
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Appointment update failed");
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
   // Calendar grid helpers
   const calendarDays = useMemo(() => {
     const year = calMonth.getFullYear();
@@ -535,7 +692,7 @@ export function ProviderWorkqueue({
             {highOpenCount > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-700" />
-                {highOpenCount} High-Priority Open
+                {highOpenCount} High-Priority Active
               </span>
             )}
             <span className="hidden lg:inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-xs font-mono text-[var(--navy)]">
@@ -554,6 +711,11 @@ export function ProviderWorkqueue({
       </header>
 
       <main className="mx-auto w-full max-w-[1680px] flex-1 px-4 sm:px-5 py-5 space-y-4">
+        <h1 className="sr-only">
+          {activeTab === "workqueue"
+            ? "RadManagement LLC — Provider Clinical Imaging Workqueue"
+            : "RadManagement LLC — Patient Visits & Imaging Calendar"}
+        </h1>
         {error && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-900 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-rose-700 shrink-0" />
@@ -825,6 +987,38 @@ export function ProviderWorkqueue({
 
                       <div className="flex flex-wrap items-center gap-2">
                         <button
+                          id="run-individual-assessment-btn"
+                          type="button"
+                          onClick={() => setShowAssessmentModal(true)}
+                          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-[var(--navy)]/30 bg-white hover:bg-slate-50 text-[var(--navy)] text-xs font-semibold cursor-pointer"
+                        >
+                          <Activity className="h-3.5 w-3.5 text-[var(--teal)]" />
+                          Run Assessment
+                        </button>
+                        <button
+                          id="download-clinical-pdf-btn"
+                          type="button"
+                          disabled={downloadingPdf !== null}
+                          onClick={() => void downloadClinicalPdf(selected.id, "full_clinical_packet")}
+                          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-[var(--navy)] text-xs font-semibold cursor-pointer disabled:opacity-50"
+                          title="Download full branded clinical report with patient responses, assessment findings, and recommended orders"
+                        >
+                          <Download className="h-3.5 w-3.5 text-[var(--teal)]" />
+                          {downloadingPdf === "full_clinical_packet"
+                            ? "Rendering PDF..."
+                            : "Clinical PDF"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={downloadingPdf !== null}
+                          onClick={() => void downloadClinicalPdf(selected.id, "prior_auth_packet")}
+                          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer disabled:opacity-50"
+                          title="Download payer Prior-Auth packet with CPT/ICD-10 codes and clinical rationale"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          {downloadingPdf === "prior_auth_packet" ? "..." : "Prior-Auth PDF"}
+                        </button>
+                        <button
                           type="button"
                           onClick={() => setShowScheduleForm((v) => !v)}
                           className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-[var(--teal)] text-[var(--teal-dark)] bg-[var(--teal-soft)]/50 hover:bg-[var(--teal-soft)] text-xs font-semibold cursor-pointer"
@@ -1091,46 +1285,198 @@ export function ProviderWorkqueue({
                       )}
                     </div>
 
-                    {/* Provenance Evidence & Source Documents (US Standard Units) */}
+                    {/* Provenance Evidence, Clinician Answer Review/Correction & Source Documents */}
                     <div className="rounded-xl border border-[var(--border)] bg-white p-4 shadow-xs space-y-4">
-                      <div className="flex items-center gap-2 border-b border-[var(--border)] pb-2.5">
-                        <FileSearch className="h-4 w-4 text-[var(--teal)]" />
-                        <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--navy)]">
-                          Patient Responses (US Units) &amp; AI Excerpts (
-                          {selected.responses.length})
-                        </h3>
+                      <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <FileSearch className="h-4 w-4 text-[var(--teal)]" />
+                          <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--navy)]">
+                            Patient Responses &amp; AI Excerpts ({selected.responses.length})
+                          </h3>
+                        </div>
+                        <span className="text-[11px] text-[var(--muted)]">
+                          Click Edit to correct &amp; re-score
+                        </span>
                       </div>
 
-                      <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
-                        {selected.responses.map((r) => (
-                          <div
-                            key={r.id}
-                            onMouseEnter={() =>
-                              r.source_document_id && setHighlightedDocId(r.source_document_id)
-                            }
-                            onMouseLeave={() => setHighlightedDocId(null)}
-                            className="rounded-lg border border-[var(--border)] p-3 text-xs space-y-1.5 hover:border-[var(--teal)] transition-colors"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold text-[var(--navy)]">
-                                {r.label_plain_english}
-                              </span>
-                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--teal-soft)] text-[var(--navy)] shrink-0">
-                                {r.provenance}
-                                {r.confidence_score !== null &&
-                                  ` · ${Math.round(r.confidence_score * 100)}%`}
-                              </span>
+                      <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                        {selected.responses.map((r) => {
+                          const isEditingThis = editingRespKey === r.question_key;
+                          const isClinicianCorrected = r.provenance === "CLINICIAN_CORRECTED";
+
+                          return (
+                            <div
+                              key={r.id}
+                              onMouseEnter={() =>
+                                r.source_document_id && setHighlightedDocId(r.source_document_id)
+                              }
+                              onMouseLeave={() => setHighlightedDocId(null)}
+                              className={`rounded-lg border p-3 text-xs space-y-2 transition-colors ${
+                                isClinicianCorrected
+                                  ? "border-sky-300 bg-sky-50/30"
+                                  : "border-[var(--border)] hover:border-[var(--teal)]"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="font-semibold text-[var(--navy)]">
+                                  {r.label_plain_english}
+                                </span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span
+                                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                                      isClinicianCorrected
+                                        ? "bg-sky-100 text-sky-900 font-semibold"
+                                        : "bg-[var(--teal-soft)] text-[var(--navy)]"
+                                    }`}
+                                  >
+                                    {r.provenance}
+                                    {!isClinicianCorrected &&
+                                      r.confidence_score !== null &&
+                                      ` · ${Math.round(r.confidence_score * 100)}%`}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => openResponseEditor(r)}
+                                    className="inline-flex items-center gap-1 h-7 px-2 rounded border border-slate-300 bg-white hover:bg-slate-50 text-[11px] font-semibold text-[var(--navy)] cursor-pointer"
+                                  >
+                                    <Edit3 className="h-3 w-3" />
+                                    {isEditingThis ? "Cancel" : "Edit"}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {!isEditingThis ? (
+                                <div className="space-y-1">
+                                  <p className="font-semibold text-[var(--teal-dark)]">
+                                    Answer: {formatMeasurement(r.question_key, r.answer_value)}
+                                    {r.original_answer_value !== undefined &&
+                                      r.original_answer_value !== null && (
+                                        <span className="ml-2 text-[11px] font-normal text-slate-500 line-through">
+                                          Orig: {formatMeasurement(r.question_key, r.original_answer_value)}
+                                        </span>
+                                      )}
+                                  </p>
+                                  {r.corrected_by && (
+                                    <p className="text-[11px] text-sky-800">
+                                      Corrected by <strong>{r.corrected_by}</strong>
+                                      {r.correction_reason ? ` — ${r.correction_reason}` : ""}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 space-y-2">
+                                  {r.question_key === "height_cm" ? (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <select
+                                        aria-label="Edit height feet"
+                                        value={respFeet}
+                                        onChange={(e) => setRespFeet(e.target.value)}
+                                        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs"
+                                      >
+                                        {[3, 4, 5, 6, 7].map((ft) => (
+                                          <option key={ft} value={ft}>
+                                            {ft} ft
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        aria-label="Edit height inches"
+                                        value={respInches}
+                                        onChange={(e) => setRespInches(e.target.value)}
+                                        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs"
+                                      >
+                                        {Array.from({ length: 12 }, (_, idx) => (
+                                          <option key={idx} value={idx}>
+                                            {idx} in
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  ) : r.question_key === "weight_kg" ? (
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="number"
+                                        value={respDraft}
+                                        onChange={(e) => setRespDraft(e.target.value)}
+                                        className="flex-1 h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs"
+                                        placeholder="Weight in lbs"
+                                      />
+                                      <span className="text-xs font-semibold text-slate-600">lbs</span>
+                                    </div>
+                                  ) : r.input_type === "boolean" || typeof r.answer_value === "boolean" ? (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {[true, false].map((b) => (
+                                        <button
+                                          key={String(b)}
+                                          type="button"
+                                          disabled={busyAction}
+                                          onClick={() =>
+                                            void saveResponseCorrection(selected.id, r, b)
+                                          }
+                                          className="h-9 rounded-lg border border-slate-300 bg-white hover:border-[var(--navy)] font-semibold text-xs cursor-pointer"
+                                        >
+                                          Save as {b ? "Yes" : "No"}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : r.input_type === "select" &&
+                                    Array.isArray(r.options_json) &&
+                                    r.options_json.length > 0 ? (
+                                    <select
+                                      value={respDraft}
+                                      onChange={(e) => setRespDraft(e.target.value)}
+                                      className="w-full h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs"
+                                    >
+                                      {r.options_json.map((o) => (
+                                        <option key={String(o.value)} value={String(o.value)}>
+                                          {o.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <input
+                                      type={
+                                        r.input_type === "number" ||
+                                        r.input_type === "lab_numeric" ||
+                                        typeof r.answer_value === "number"
+                                          ? "number"
+                                          : "text"
+                                      }
+                                      value={respDraft}
+                                      onChange={(e) => setRespDraft(e.target.value)}
+                                      className="w-full h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs"
+                                    />
+                                  )}
+
+                                  <input
+                                    type="text"
+                                    placeholder="Correction reason (e.g., confirmed with patient / chart lab)"
+                                    value={respReason}
+                                    onChange={(e) => setRespReason(e.target.value)}
+                                    className="w-full h-8 rounded-lg border border-slate-300 bg-white px-2.5 text-[11px]"
+                                  />
+
+                                  {!(r.input_type === "boolean" || typeof r.answer_value === "boolean") && (
+                                    <button
+                                      type="button"
+                                      disabled={busyAction}
+                                      onClick={() => void saveResponseCorrection(selected.id, r)}
+                                      className="w-full h-9 rounded-lg bg-[var(--navy)] text-white text-xs font-semibold hover:bg-[var(--navy-dark)] cursor-pointer disabled:opacity-50"
+                                    >
+                                      Save Correction &amp; Re-Evaluate Rules
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                              {r.source_excerpt && (
+                                <blockquote className="rounded bg-amber-50/70 border-l-2 border-amber-400 px-2.5 py-1.5 text-[11px] italic text-amber-950">
+                                  &ldquo;{r.source_excerpt}&rdquo;
+                                </blockquote>
+                              )}
                             </div>
-                            <p className="font-semibold text-[var(--teal-dark)]">
-                              Answer: {formatUsMeasurement(r.question_key, r.answer_value)}
-                            </p>
-                            {r.source_excerpt && (
-                              <blockquote className="rounded bg-amber-50/70 border-l-2 border-amber-400 px-2.5 py-1.5 text-[11px] italic text-amber-950">
-                                &ldquo;{r.source_excerpt}&rdquo;
-                              </blockquote>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {selected.documents.length > 0 && (
@@ -1375,6 +1721,84 @@ export function ProviderWorkqueue({
                         </span>
                       </div>
 
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (reschedulingApptId === a.id) {
+                              setReschedulingApptId(null);
+                            } else {
+                              setReschedulingApptId(a.id);
+                              setReschedDate(toDateKey(a.scheduled_start));
+                              const dt = new Date(a.scheduled_start);
+                              setReschedTime(
+                                `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`,
+                              );
+                            }
+                          }}
+                          className="flex-1 h-8 px-2 rounded-lg border border-slate-300 bg-white text-[11px] font-semibold text-[var(--navy)] hover:bg-slate-50 cursor-pointer"
+                        >
+                          {reschedulingApptId === a.id ? "Close" : "Reschedule"}
+                        </button>
+                        {a.status !== "CONFIRMED" && a.status !== "COMPLETED" && (
+                          <button
+                            type="button"
+                            disabled={busyAction}
+                            onClick={() => void updateAppointment(a.id, { status: "CONFIRMED" })}
+                            className="h-8 px-2.5 rounded-lg border border-teal-300 bg-teal-50 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 cursor-pointer"
+                          >
+                            Confirm
+                          </button>
+                        )}
+                        {a.status !== "CANCELLED" && a.status !== "COMPLETED" && (
+                          <button
+                            type="button"
+                            disabled={busyAction}
+                            onClick={() => void updateAppointment(a.id, { status: "CANCELLED" })}
+                            className="h-8 px-2.5 rounded-lg border border-rose-200 bg-rose-50 text-[11px] font-semibold text-rose-800 hover:bg-rose-100 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+
+                      {reschedulingApptId === a.id && (
+                        <div className="rounded-lg border border-[var(--teal)]/40 bg-white p-2.5 space-y-2">
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <input
+                              type="date"
+                              aria-label="New appointment date"
+                              value={reschedDate}
+                              onChange={(e) => setReschedDate(e.target.value)}
+                              className="h-8 rounded border border-slate-300 px-2 text-xs"
+                            />
+                            <input
+                              type="time"
+                              aria-label="New appointment time"
+                              value={reschedTime}
+                              onChange={(e) => setReschedTime(e.target.value)}
+                              className="h-8 rounded border border-slate-300 px-2 text-xs"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            disabled={busyAction}
+                            onClick={() => {
+                              const start = new Date(`${reschedDate}T${reschedTime}:00`);
+                              const end = new Date(start.getTime() + 30 * 60 * 1000);
+                              void updateAppointment(a.id, {
+                                scheduled_start: start.toISOString(),
+                                scheduled_end: end.toISOString(),
+                                status: "CONFIRMED",
+                              });
+                            }}
+                            className="w-full h-8 rounded-lg bg-[var(--navy)] text-white text-xs font-semibold hover:bg-[var(--navy-dark)] cursor-pointer disabled:opacity-50"
+                          >
+                            Save New Date &amp; Time
+                          </button>
+                        </div>
+                      )}
+
                       {a.workqueue_item_id && (
                         <button
                           type="button"
@@ -1397,6 +1821,15 @@ export function ProviderWorkqueue({
           </div>
         )}
       </main>
+
+      {showAssessmentModal && selected && (
+        <IndividualAssessmentModal
+          workqueueId={selected.id}
+          patientName={`${selected.patient.first_name} ${selected.patient.last_name}`}
+          onClose={() => setShowAssessmentModal(false)}
+          onCommitted={loadAll}
+        />
+      )}
     </div>
   );
 }

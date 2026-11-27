@@ -61,4 +61,5 @@ async function proxyToRulesApi(
 export const GET = proxyToRulesApi;
 export const POST = proxyToRulesApi;
 export const PUT = proxyToRulesApi;
+export const PATCH = proxyToRulesApi;
 export const DELETE = proxyToRulesApi;

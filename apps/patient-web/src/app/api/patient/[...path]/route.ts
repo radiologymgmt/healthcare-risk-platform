@@ -10,6 +10,8 @@ const ALLOWED_PREFIXES = [
   "sessions/",
   "insurance/verify",
   "appointments",
+  "public/release",
+  "payers/accepted",
 ];
 
 async function proxyPatientApi(

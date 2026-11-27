@@ -12,6 +12,7 @@ import {
 import { writeAuditLog } from "./audit.js";
 import { requireRole, type AuthenticatedRequest } from "./rbac.js";
 import { isDemoModeEnabled } from "./demo-mode.js";
+import { registerWorkqueueClinicalRoutes } from "./workqueue-clinical-routes.js";
 
 const UuidSchema = z.string().uuid();
 
@@ -194,11 +195,17 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
                   ar.question_key,
                   q.domain,
                   q.label_plain_english,
+                  q.input_type,
+                  q.options_json,
                   ar.answer_value,
+                  ar.original_answer_value,
                   ar.provenance,
                   ar.confidence_score,
                   ar.source_document_id,
                   ar.source_excerpt,
+                  ar.corrected_by,
+                  ar.correction_reason,
+                  ar.corrected_at,
                   ar.updated_at
                 FROM assessment_responses ar
                 INNER JOIN questions q ON q.question_key = ar.question_key
@@ -906,6 +913,9 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
       client.release();
     }
   });
+
+  // Provider Clinical Power Tools: Calendar Reschedule/Cancel, Clinician Answer Corrections, Individual Assessment Runner & Clinical PDFs
+  registerWorkqueueClinicalRoutes(router, pool, logger);
 
   return router;
 }

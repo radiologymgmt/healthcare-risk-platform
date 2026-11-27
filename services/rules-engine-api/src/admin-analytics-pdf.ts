@@ -95,16 +95,23 @@ export async function collectExecutiveAnalytics(pool: Pool) {
       status: string;
       triggered_count: string;
       started_at: Date;
+      first_name: string;
+      last_name: string;
+      mrn: string | null;
     }>(`
       SELECT
         s.id AS session_id,
         s.channel,
         s.status,
         COUNT(tp.id)::text AS triggered_count,
-        s.started_at
+        s.started_at,
+        p.first_name,
+        p.last_name,
+        p.mrn
       FROM assessment_sessions s
+      INNER JOIN patients p ON p.id = s.patient_id
       LEFT JOIN triggered_pathways tp ON tp.session_id = s.id
-      GROUP BY s.id
+      GROUP BY s.id, p.first_name, p.last_name, p.mrn
       ORDER BY s.started_at DESC
       LIMIT 15
     `),
@@ -146,6 +153,8 @@ export async function collectExecutiveAnalytics(pool: Pool) {
     })),
     recent_sessions: recentSessionsRes.rows.map((r) => ({
       session_id: r.session_id,
+      patient_name: `${r.first_name} ${r.last_name}`.trim(),
+      mrn: r.mrn,
       channel: r.channel,
       status: r.status,
       triggered_count: Number(r.triggered_count),
@@ -216,7 +225,7 @@ export function registerAdminAnalyticsAndPdfRoutes(
           fallbackLines = [
             `Total Sessions: ${analytics.kpis.total_sessions}`,
             `Triggered Pathways: ${analytics.kpis.total_triggered_pathways}`,
-            `Open Workqueue Items: ${analytics.kpis.open_workqueue_items} (STAT: ${analytics.kpis.stat_triage_count})`,
+            `Open Workqueue Items: ${analytics.kpis.open_workqueue_items} (High-Priority: ${analytics.kpis.stat_triage_count})`,
             `Approved/Ordered Pathways: ${analytics.kpis.orders_approved_count}`,
           ];
 

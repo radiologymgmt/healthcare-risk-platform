@@ -220,7 +220,7 @@ export function MagicLinkReview({ token }: { token: string }) {
         </div>
       )}
 
-      {/* STAGE 1: DOB + ZIP Verification Gate */}
+      {/* STAGE 1: DOB + ZIP Verification Gate + Patient Release */}
       {stage === "VERIFY" && (
         <form
           onSubmit={(e) => void handleVerify(e)}
@@ -231,6 +231,18 @@ export function MagicLinkReview({ token }: { token: string }) {
             <p className="text-xs text-[var(--muted)] leading-relaxed">
               We pre-filled parts of your health risk assessment from your clinical notes to save
               you time. Enter your date of birth and ZIP code to unlock your review cards.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-rose-300 bg-rose-50 px-3.5 py-2.5 text-[11px] text-rose-950 space-y-1">
+            <p className="font-bold flex items-center gap-1.5 text-rose-900">
+              <AlertTriangle className="h-3.5 w-3.5 text-rose-700 shrink-0" />
+              Not for Medical Emergencies — Call 911 for Acute Symptoms
+            </p>
+            <p className="leading-relaxed">
+              If you are experiencing sudden severe chest/back pain, worst-ever headache, shortness
+              of breath, sudden weakness, or any acute emergency, <strong>call 911</strong> or go to
+              the nearest Emergency Room immediately.
             </p>
           </div>
 
@@ -261,13 +273,29 @@ export function MagicLinkReview({ token }: { token: string }) {
             />
           </label>
 
+          <label className="flex items-start gap-2.5 rounded-xl border border-[var(--border)] bg-slate-50/80 p-3 text-[11px] text-slate-700 leading-relaxed cursor-pointer">
+            <input
+              id="magic-release-checkbox"
+              type="checkbox"
+              required
+              defaultChecked={false}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[var(--navy)] shrink-0"
+            />
+            <span>
+              I agree to share my confirmed health information with{" "}
+              <strong>RadManagement LLC</strong> and its participating healthcare partners. I
+              understand my records are initially organized by HIPAA-compliant AI tools and all
+              recommendations are reviewed by licensed clinicians.
+            </span>
+          </label>
+
           <button
             id="verify-magic-link-btn"
             type="submit"
             disabled={busy}
             className="w-full h-12 rounded-xl bg-[var(--teal)] text-white text-sm font-semibold hover:bg-[var(--teal-dark)] disabled:opacity-50 cursor-pointer"
           >
-            {busy ? "Verifying..." : "Unlock My Health Review"}
+            {busy ? "Verifying..." : "Agree & Unlock My Health Review"}
           </button>
 
           <p className="text-[11px] text-center text-[var(--muted)]">
@@ -466,7 +494,7 @@ export function MagicLinkReview({ token }: { token: string }) {
                       {item.question_key === "weight_kg" && (
                         <div className="flex gap-2 items-end">
                           <label className="flex-1 text-[11px] font-medium text-slate-600 space-y-1">
-                            <span>Weight (US pounds, lbs)</span>
+                            <span>Weight (lbs)</span>
                             <div className="relative">
                               <input
                                 type="number"

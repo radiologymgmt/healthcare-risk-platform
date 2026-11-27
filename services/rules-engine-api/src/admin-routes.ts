@@ -15,6 +15,7 @@ import { computeDerivedMetrics, enrichAnswersFromPedigree } from "./derived-metr
 import { writeAuditLog } from "./audit.js";
 import { requireRole, type AuthenticatedRequest } from "./rbac.js";
 import { registerAdminAnalyticsAndPdfRoutes } from "./admin-analytics-pdf.js";
+import { registerAdminGovernanceRoutes } from "./admin-governance-routes.js";
 import { isDemoModeEnabled } from "./demo-mode.js";
 
 const UuidParamSchema = z.string().uuid();
@@ -754,6 +755,9 @@ export function createAdminRouter(pool: Pool, logger: HipaaLogger): Router {
 
   // Phase 5: Executive Analytics & Headless PDF Engine
   registerAdminAnalyticsAndPdfRoutes(router, pool, logger);
+
+  // Enterprise Governance: Users, Accepted Payers, Platform Settings & Restore Points
+  registerAdminGovernanceRoutes(router, pool, logger);
 
   // Synthetic Demo Reset (strictly disabled in real production unless DEMO_MODE=true)
   router.post("/demo-reset", async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

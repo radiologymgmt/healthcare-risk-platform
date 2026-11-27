@@ -92,6 +92,7 @@ export const ProvenanceSchema = z.enum([
   "AI_PARSED",
   "PATIENT_CONFIRMED_AI",
   "EHR_LAB_IMPORT",
+  "CLINICIAN_CORRECTED",
 ]);
 export type Provenance = z.infer<typeof ProvenanceSchema>;
 
@@ -137,7 +138,14 @@ export function normalizeWorkqueueStatus(raw: string | null | undefined): Workqu
   return "CONTACT_PENDING";
 }
 
-export const ActorRoleSchema = z.enum(["PATIENT", "PROVIDER", "ADMIN", "SYSTEM"]);
+export const ActorRoleSchema = z.enum([
+  "PATIENT",
+  "PROVIDER",
+  "COORDINATOR",
+  "AUDITOR",
+  "ADMIN",
+  "SYSTEM",
+]);
 export type ActorRole = z.infer<typeof ActorRoleSchema>;
 
 export const ACUITY_RANK: Record<AcuityLevel, number> = {

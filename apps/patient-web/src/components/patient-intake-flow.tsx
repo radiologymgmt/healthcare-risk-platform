@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -13,6 +13,7 @@ import {
   HelpCircle,
   Info,
   Monitor,
+  PhoneCall,
   Plus,
   Shield,
   ShieldCheck,
@@ -23,6 +24,51 @@ import {
 } from "lucide-react";
 import type { QuestionDto, SexAtBirth } from "@healthcare/shared-contracts";
 import { computeAgeFromDob, getVisibleQuestions } from "@/lib/branching";
+
+const ACUTE_EMERGENCY_KEYS = new Set([
+  "has_thunderclap_headache",
+  "has_headache_with_fever_or_stiff_neck",
+  "has_headache_neurologic_deficit",
+  "has_acute_tearing_chest_back_pain",
+  "has_transient_neuro_symptoms",
+  "has_acute_leg_swelling_or_dyspnea",
+  "has_hemoptysis",
+]);
+
+interface AcceptedPayerOption {
+  payer_code: string;
+  stedi_trading_partner_id: string;
+  payer_name: string;
+  acceptance_status: "IN_NETWORK" | "OUT_OF_NETWORK_ACCEPTED" | "NOT_ACCEPTED";
+  requires_pcp_referral: boolean;
+  self_pay_available: boolean;
+  patient_guidance_note: string | null;
+}
+
+interface PatientReleaseConfig {
+  consent_version: string;
+  title: string;
+  organization_name: string;
+  data_sharing_statement: string;
+  ai_clinician_statement: string;
+  emergency_911_headline: string;
+  emergency_911_body: string;
+  require_typed_signature?: boolean;
+}
+
+const DEFAULT_RELEASE_CONFIG: PatientReleaseConfig = {
+  consent_version: "v1.0",
+  title: "Patient Release, AI Processing Disclosure & Safety Notice",
+  organization_name: "RadManagement LLC",
+  data_sharing_statement:
+    "I authorize RadManagement LLC and its participating healthcare partners, referring physicians, and radiology care coordinators to receive, securely store, and review the health information I submit (along with linked clinical records) for preventive risk assessment and imaging coordination in accordance with HIPAA.",
+  ai_clinician_statement:
+    "I understand that my assessment responses and clinical documents may be initially processed by HIPAA-compliant automated AI tools to organize clinical risk factors, and that all screening recommendations and imaging orders are reviewed and approved by licensed clinicians.",
+  emergency_911_headline: "Not for Medical Emergencies — Call 911 for Acute Symptoms",
+  emergency_911_body:
+    "This assessment is for preventive and non-emergency care coordination only. If you are experiencing a sudden severe headache, tearing chest or back pain, shortness of breath, sudden weakness or trouble speaking, or any other acute or emergent symptoms, STOP immediately and call 911, go to the nearest Emergency Room, or speak directly with your doctor right away.",
+  require_typed_signature: true,
+};
 
 const MODULE_OPTIONS = [
   {
@@ -75,11 +121,43 @@ const MODULE_OPTIONS = [
   },
 ];
 
-const PAYER_OPTIONS = [
-  { id: "60054", name: "Aetna Commercial" },
-  { id: "87726", name: "UnitedHealthcare" },
-  { id: "00060", name: "Blue Cross Blue Shield" },
-  { id: "CMS", name: "Medicare Part B" },
+const FALLBACK_PAYERS: AcceptedPayerOption[] = [
+  {
+    payer_code: "BSCA_94036",
+    stedi_trading_partner_id: "94036",
+    payer_name: "Blue Shield / BlueCross Commercial",
+    acceptance_status: "IN_NETWORK",
+    requires_pcp_referral: false,
+    self_pay_available: true,
+    patient_guidance_note: "In-network with RadManagement LLC.",
+  },
+  {
+    payer_code: "AETNA_60054",
+    stedi_trading_partner_id: "60054",
+    payer_name: "Aetna Commercial & Medicare Advantage",
+    acceptance_status: "IN_NETWORK",
+    requires_pcp_referral: false,
+    self_pay_available: true,
+    patient_guidance_note: "In-network with RadManagement LLC.",
+  },
+  {
+    payer_code: "UHC_87726",
+    stedi_trading_partner_id: "87726",
+    payer_name: "UnitedHealthcare",
+    acceptance_status: "IN_NETWORK",
+    requires_pcp_referral: false,
+    self_pay_available: true,
+    patient_guidance_note: "In-network for most PPO/Choice Plus plans.",
+  },
+  {
+    payer_code: "MEDICARE_00882",
+    stedi_trading_partner_id: "00882",
+    payer_name: "Medicare Part B (Traditional)",
+    acceptance_status: "IN_NETWORK",
+    requires_pcp_referral: false,
+    self_pay_available: true,
+    patient_guidance_note: "Covered preventive screenings typically have $0 coinsurance.",
+  },
 ];
 
 interface PedigreeRow {
@@ -98,6 +176,16 @@ interface InsuranceSummary {
   preventive_screening_copay_usd: number;
   deductible_remaining_usd: number;
   x12_transaction_id: string;
+  organization_acceptance?:
+    | "ACCEPTED_IN_NETWORK"
+    | "ACCEPTED_REFERRAL_REQUIRED"
+    | "OUT_OF_NETWORK_SELF_PAY"
+    | "NOT_ACCEPTED_SELF_PAY"
+    | "COVERAGE_INACTIVE";
+  network_status?: string;
+  requires_pcp_referral?: boolean;
+  self_pay_available?: boolean;
+  patient_guidance_note?: string;
 }
 
 interface ConsultSlot {
@@ -177,8 +265,17 @@ export function PatientIntakeFlow() {
     age_at_diagnosis: 48,
   });
 
-  // Step 3: Stedi Insurance Eligibility
-  const [payerId, setPayerId] = useState(PAYER_OPTIONS[0]!.id);
+  // Governance: Patient Release & Accepted Payers loaded dynamically from PostgreSQL
+  const [releaseConfig, setReleaseConfig] = useState<PatientReleaseConfig>(DEFAULT_RELEASE_CONFIG);
+  const [acceptedPayers, setAcceptedPayers] = useState<AcceptedPayerOption[]>(FALLBACK_PAYERS);
+  const [consentDataSharing, setConsentDataSharing] = useState(false);
+  const [consentAiReview, setConsentAiReview] = useState(false);
+  const [consentEmergency911, setConsentEmergency911] = useState(false);
+  const [typedSignature, setTypedSignature] = useState("");
+  const [emergencyModalQuestion, setEmergencyModalQuestion] = useState<string | null>(null);
+
+  // Step 3: 2-Layer Organization Acceptance + Stedi Insurance Eligibility
+  const [selectedPayerCode, setSelectedPayerCode] = useState(FALLBACK_PAYERS[0]!.payer_code);
   const [memberId, setMemberId] = useState("SYN-PPO-44219");
   const [insuranceStatus, setInsuranceStatus] = useState<InsuranceSummary | null>(null);
 
@@ -187,6 +284,36 @@ export function PatientIntakeFlow() {
   const [slots, setSlots] = useState<ConsultSlot[]>([]);
   const [bookedSlot, setBookedSlot] = useState<ConsultSlot | null>(null);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const [relRes, payRes] = await Promise.all([
+          fetch("/api/patient/public/release", { cache: "no-store" }),
+          fetch("/api/patient/payers/accepted", { cache: "no-store" }),
+        ]);
+        if (active && relRes.ok) {
+          const rData = (await relRes.json()) as { release?: Partial<PatientReleaseConfig> };
+          if (rData.release) {
+            setReleaseConfig((prev) => ({ ...prev, ...rData.release }));
+          }
+        }
+        if (active && payRes.ok) {
+          const pData = (await payRes.json()) as { payers?: AcceptedPayerOption[] };
+          if (pData.payers && pData.payers.length > 0) {
+            setAcceptedPayers(pData.payers);
+            setSelectedPayerCode(pData.payers[0]!.payer_code);
+          }
+        }
+      } catch {
+        // Fallback defaults remain active if config endpoints are temporarily unreachable
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const computedAge = useMemo(() => computeAgeFromDob(dob), [dob]);
   const visibleQuestions = useMemo(
@@ -226,6 +353,7 @@ export function PatientIntakeFlow() {
   }, [answers.height_cm, answers.weight_kg]);
 
   const isMobilePreview = viewMode === "mobile";
+  const allConsentsChecked = consentDataSharing && consentAiReview && consentEmergency911;
 
   function fillSyntheticDemo() {
     setFirstName("Claire");
@@ -236,6 +364,10 @@ export function PatientIntakeFlow() {
     setEmail("claire.synthetic@example.org");
     setPhone("(555) 201-5519");
     setSelectedModules(["oncology", "pulmonology", "cardio"]);
+    setConsentDataSharing(true);
+    setConsentAiReview(true);
+    setConsentEmergency911(true);
+    setTypedSignature("Claire Bennett");
   }
 
   function updateHeightUs(nextFeet: string, nextInches: string) {
@@ -278,6 +410,10 @@ export function PatientIntakeFlow() {
 
   async function handleStartIntake(e: React.FormEvent) {
     e.preventDefault();
+    if (!allConsentsChecked) {
+      setError("Please review and check all three Patient Release & Safety acknowledgments before continuing.");
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
@@ -294,6 +430,13 @@ export function PatientIntakeFlow() {
           email: email.trim(),
           phone: phone.trim(),
           selected_modules: modules,
+          consent: {
+            consent_version: releaseConfig.consent_version || "v1.0",
+            acknowledged_data_sharing: consentDataSharing,
+            acknowledged_ai_clinician_review: consentAiReview,
+            acknowledged_emergency_911: consentEmergency911,
+            typed_signature: typedSignature.trim() || `${firstName.trim()} ${lastName.trim()}`.trim(),
+          },
         }),
       });
       const sessData = (await sessRes.json()) as {
@@ -337,14 +480,15 @@ export function PatientIntakeFlow() {
     setError(null);
     setBusy(true);
     try {
-      const payer = PAYER_OPTIONS.find((p) => p.id === payerId);
+      const payer = acceptedPayers.find((p) => p.payer_code === selectedPayerCode);
       const res = await fetch("/api/patient/insurance/verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           patient_id: patientId,
-          payer_id: payerId,
-          payer_name: payer?.name ?? payerId,
+          payer_code: payer?.payer_code,
+          payer_id: payer?.stedi_trading_partner_id ?? selectedPayerCode,
+          payer_name: payer?.payer_name ?? selectedPayerCode,
           member_id: memberId.trim(),
         }),
       });
@@ -894,6 +1038,104 @@ export function PatientIntakeFlow() {
                     </div>
                   </div>
 
+                  {/* Patient Release, AI Disclosure & 911 Emergency Warning */}
+                  <div className="space-y-4 pt-5 border-t border-[var(--border)]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-base font-bold text-[var(--navy)]">
+                          {releaseConfig.title}
+                        </h3>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">
+                          Please review and check each acknowledgment below to begin your assessment.
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-mono text-[var(--muted)] bg-slate-100 px-2 py-0.5 rounded">
+                        Release {releaseConfig.consent_version}
+                      </span>
+                    </div>
+
+                    {/* Prominent 911 / Emergency Department Warning */}
+                    <div
+                      role="alert"
+                      className="rounded-xl border-2 border-rose-300 bg-rose-50 p-4 text-rose-950 space-y-1.5"
+                    >
+                      <p className="text-xs sm:text-sm font-bold flex items-center gap-2 text-rose-900">
+                        <AlertTriangle className="h-4 w-4 text-rose-700 shrink-0" />
+                        {releaseConfig.emergency_911_headline}
+                      </p>
+                      <p className="text-xs leading-relaxed text-rose-900">
+                        {releaseConfig.emergency_911_body}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      <label className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-slate-50/70 p-3.5 text-xs text-slate-800 leading-relaxed cursor-pointer hover:border-[var(--teal)]">
+                        <input
+                          id="consent-data-sharing"
+                          type="checkbox"
+                          required
+                          checked={consentDataSharing}
+                          onChange={(e) => setConsentDataSharing(e.target.checked)}
+                          className="mt-0.5 h-5 w-5 rounded border-slate-300 accent-[var(--navy)] shrink-0"
+                        />
+                        <span>
+                          <strong className="text-[var(--navy)]">
+                            Authorization to Share Health Information:
+                          </strong>{" "}
+                          {releaseConfig.data_sharing_statement}
+                        </span>
+                      </label>
+
+                      <label className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-slate-50/70 p-3.5 text-xs text-slate-800 leading-relaxed cursor-pointer hover:border-[var(--teal)]">
+                        <input
+                          id="consent-ai-review"
+                          type="checkbox"
+                          required
+                          checked={consentAiReview}
+                          onChange={(e) => setConsentAiReview(e.target.checked)}
+                          className="mt-0.5 h-5 w-5 rounded border-slate-300 accent-[var(--navy)] shrink-0"
+                        />
+                        <span>
+                          <strong className="text-[var(--navy)]">
+                            AI-Assisted Processing &amp; Clinician Oversight:
+                          </strong>{" "}
+                          {releaseConfig.ai_clinician_statement}
+                        </span>
+                      </label>
+
+                      <label className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50/40 p-3.5 text-xs text-slate-800 leading-relaxed cursor-pointer hover:border-rose-400">
+                        <input
+                          id="consent-emergency-911"
+                          type="checkbox"
+                          required
+                          checked={consentEmergency911}
+                          onChange={(e) => setConsentEmergency911(e.target.checked)}
+                          className="mt-0.5 h-5 w-5 rounded border-rose-300 accent-rose-700 shrink-0"
+                        />
+                        <span>
+                          <strong className="text-rose-900">
+                            Emergency Care Acknowledgment:
+                          </strong>{" "}
+                          I understand this tool is not for emergencies, and if I experience acute
+                          or emergent symptoms I will immediately speak with my provider, visit an
+                          Emergency Room, or call <strong>911</strong>.
+                        </span>
+                      </label>
+                    </div>
+
+                    <label className="block space-y-1.5 text-xs font-semibold text-[var(--navy)] max-w-md">
+                      <span>Typed Name / Acknowledgment Signature (Optional)</span>
+                      <input
+                        id="consent-typed-signature"
+                        type="text"
+                        placeholder="Type your full name to acknowledge"
+                        value={typedSignature}
+                        onChange={(e) => setTypedSignature(e.target.value)}
+                        className="w-full h-11 rounded-xl border border-slate-300 px-3.5 text-base sm:text-sm font-normal"
+                      />
+                    </label>
+                  </div>
+
                   {/* Desktop Footer Bar */}
                   <div
                     className={`${
@@ -903,8 +1145,7 @@ export function PatientIntakeFlow() {
                     }`}
                   >
                     <p className="text-xs text-[var(--muted)]">
-                      All measurements use <strong>US Standard units</strong> (feet, inches, and
-                      pounds).
+                      All answers are encrypted in transit and reviewed by a licensed clinician.
                     </p>
                     <button
                       id="start-questionnaire-btn"
@@ -912,7 +1153,7 @@ export function PatientIntakeFlow() {
                       disabled={busy}
                       className="inline-flex items-center gap-2 rounded-xl bg-[var(--navy)] px-7 py-3 text-sm font-semibold text-white hover:bg-[var(--navy-dark)] disabled:opacity-50 cursor-pointer shadow-xs transition-colors"
                     >
-                      {busy ? "Preparing Your Questions..." : "Continue to Your Health Questions"}
+                      {busy ? "Preparing Your Questions..." : "Agree & Continue to Health Questions"}
                       <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>
@@ -930,7 +1171,7 @@ export function PatientIntakeFlow() {
                       disabled={busy}
                       className="w-full h-12 rounded-xl bg-[var(--navy)] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                     >
-                      {busy ? "Preparing Questions..." : "Continue to Health Questions"}
+                      {busy ? "Preparing Questions..." : "Agree & Continue"}
                       <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>
@@ -973,8 +1214,14 @@ export function PatientIntakeFlow() {
                 </div>
               </div>
 
-              {/* Domain Filter Chips (Mobile Horizontal Scroll) */}
-              <div className="flex gap-2 overflow-x-auto pb-1">
+              {/* Domain Filter Chips (Mobile / Tablet Horizontal Scroll — Desktop uses sticky left sidebar) */}
+              <div
+                className={
+                  isMobilePreview
+                    ? "flex gap-2 overflow-x-auto pb-1"
+                    : "flex lg:hidden gap-2 overflow-x-auto pb-1"
+                }
+              >
                 <button
                   type="button"
                   onClick={() => setActiveDomainFilter("ALL")}
@@ -1239,9 +1486,12 @@ export function PatientIntakeFlow() {
                               <button
                                 key={opt.label}
                                 type="button"
-                                onClick={() =>
-                                  setAnswers((prev) => ({ ...prev, [q.question_key]: opt.val }))
-                                }
+                                onClick={() => {
+                                  setAnswers((prev) => ({ ...prev, [q.question_key]: opt.val }));
+                                  if (opt.val === true && ACUTE_EMERGENCY_KEYS.has(q.question_key)) {
+                                    setEmergencyModalQuestion(q.label_plain_english);
+                                  }
+                                }}
                                 className={`h-12 sm:h-10 sm:px-8 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${
                                   currentVal === opt.val
                                     ? "border-[var(--navy)] bg-[var(--navy)] text-white shadow-xs"
@@ -1473,13 +1723,21 @@ export function PatientIntakeFlow() {
                     <span>Insurance Plan / Payer</span>
                     <select
                       id="insurance-payer-select"
-                      value={payerId}
-                      onChange={(e) => setPayerId(e.target.value)}
+                      value={selectedPayerCode}
+                      onChange={(e) => {
+                        setSelectedPayerCode(e.target.value);
+                        setInsuranceStatus(null);
+                      }}
                       className="w-full h-12 sm:h-11 rounded-xl border border-slate-300 px-3.5 text-base sm:text-sm font-normal bg-white"
                     >
-                      {PAYER_OPTIONS.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.id})
+                      {acceptedPayers.map((p) => (
+                        <option key={p.payer_code} value={p.payer_code}>
+                          {p.payer_name} —{" "}
+                          {p.acceptance_status === "IN_NETWORK"
+                            ? "In-Network"
+                            : p.acceptance_status === "OUT_OF_NETWORK_ACCEPTED"
+                              ? "Out-of-Network / Self-Pay"
+                              : "Self-Pay Option"}
                         </option>
                       ))}
                     </select>
@@ -1504,36 +1762,53 @@ export function PatientIntakeFlow() {
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--teal)] text-[var(--teal-dark)] px-5 py-3 min-h-[44px] text-sm font-semibold hover:bg-[var(--teal-soft)] cursor-pointer transition-colors w-full sm:w-auto"
                 >
                   <ShieldCheck className="h-4 w-4" />
-                  {busy ? "Checking Coverage..." : "Verify My Preventive Benefits"}
+                  {busy ? "Checking Coverage & Network Status..." : "Verify My Preventive Benefits"}
                 </button>
 
                 {insuranceStatus && (
                   <div
-                    className={`rounded-xl border p-4 space-y-1.5 text-sm ${
-                      insuranceStatus.eligible
-                        ? "border-[var(--teal)]/40 bg-[var(--teal-soft)] text-[var(--navy)]"
-                        : "border-rose-200 bg-rose-50 text-rose-950"
+                    className={`rounded-xl border p-4 space-y-2 text-sm ${
+                      insuranceStatus.organization_acceptance === "ACCEPTED_IN_NETWORK"
+                        ? "border-teal-300 bg-[var(--teal-soft)] text-[var(--navy)]"
+                        : insuranceStatus.organization_acceptance === "ACCEPTED_REFERRAL_REQUIRED" ||
+                            insuranceStatus.organization_acceptance === "OUT_OF_NETWORK_SELF_PAY"
+                          ? "border-amber-300 bg-amber-50 text-amber-950"
+                          : "border-rose-200 bg-rose-50 text-rose-950"
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-semibold flex items-center gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-[var(--teal)]" />
-                        Coverage {insuranceStatus.coverage_status}: {insuranceStatus.plan_name}
+                      <span className="font-bold flex items-center gap-1.5">
+                        {insuranceStatus.organization_acceptance === "ACCEPTED_IN_NETWORK" ? (
+                          <CheckCircle2 className="h-4 w-4 text-[var(--teal)] shrink-0" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0" />
+                        )}
+                        {insuranceStatus.organization_acceptance === "ACCEPTED_IN_NETWORK"
+                          ? "Accepted — In-Network with RadManagement LLC"
+                          : insuranceStatus.organization_acceptance === "ACCEPTED_REFERRAL_REQUIRED"
+                            ? "Accepted — PCP Referral / Prior Auth Required"
+                            : insuranceStatus.organization_acceptance === "OUT_OF_NETWORK_SELF_PAY"
+                              ? "Out-of-Network Plan — Transparent Self-Pay Available"
+                              : insuranceStatus.organization_acceptance === "NOT_ACCEPTED_SELF_PAY"
+                                ? "Plan Not Currently Contracted — Self-Pay Options Available"
+                                : `Coverage ${insuranceStatus.coverage_status}`}
                       </span>
-                      <span className="font-mono text-xs text-[var(--muted)]">
+                      <span className="font-mono text-xs opacity-75">
                         {insuranceStatus.x12_transaction_id}
                       </span>
                     </div>
-                    <p className="text-xs text-[var(--muted)]">
-                      Estimated Preventive Screening Copay:{" "}
-                      <strong className="text-[var(--navy)]">
-                        ${insuranceStatus.preventive_screening_copay_usd}
-                      </strong>{" "}
-                      &middot; Remaining Deductible:{" "}
-                      <strong className="text-[var(--navy)]">
-                        ${insuranceStatus.deductible_remaining_usd}
-                      </strong>
+                    <p className="text-xs">
+                      <strong>Policy Status:</strong> {insuranceStatus.coverage_status} (
+                      {insuranceStatus.plan_name}) &middot; Est. Preventive Copay:{" "}
+                      <strong>${insuranceStatus.preventive_screening_copay_usd}</strong> &middot;
+                      Remaining Deductible:{" "}
+                      <strong>${insuranceStatus.deductible_remaining_usd}</strong>
                     </p>
+                    {insuranceStatus.patient_guidance_note && (
+                      <p className="text-xs leading-relaxed pt-1 border-t border-black/10">
+                        {insuranceStatus.patient_guidance_note}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1711,9 +1986,63 @@ export function PatientIntakeFlow() {
               &copy; {new Date().getFullYear()} RadManagement LLC &middot; Clinical Imaging &amp;
               Radiology Solutions
             </span>
-            <span>HIPAA-Protected Assessment &middot; US Standard Measurements</span>
+            <span>HIPAA-Protected Preventive Health Assessment</span>
           </div>
         </footer>
+
+        {/* Real-Time Acute Symptom 911 / Emergency Department Safety Interrupt Modal */}
+        {emergencyModalQuestion && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="emergency-modal-title"
+            className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <div className="max-w-lg w-full rounded-2xl border-2 border-rose-400 bg-white p-6 shadow-2xl space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="h-11 w-11 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <div className="space-y-1">
+                  <h2 id="emergency-modal-title" className="text-lg font-bold text-rose-950">
+                    Important Safety Alert — Seek Immediate Care
+                  </h2>
+                  <p className="text-xs text-slate-600">
+                    You indicated <strong>Yes</strong> to: &ldquo;{emergencyModalQuestion}&rdquo;
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-rose-50 border border-rose-200 p-4 text-xs text-rose-950 leading-relaxed space-y-2">
+                <p>
+                  <strong>If you are experiencing this symptom right now</strong>, do not wait for
+                  an online review or scheduled appointment.
+                </p>
+                <p>
+                  Please <strong>call 911 immediately</strong>, go to the nearest{" "}
+                  <strong>Emergency Room</strong>, or speak directly with your physician right away.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                <a
+                  href="tel:911"
+                  className="flex-1 h-12 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-sm font-bold inline-flex items-center justify-center gap-2 transition-colors"
+                >
+                  <PhoneCall className="h-4 w-4" />
+                  Call 911 Now
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setEmergencyModalQuestion(null)}
+                  className="flex-1 h-12 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 cursor-pointer"
+                >
+                  I Understand — Continue Recording for My Clinician
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

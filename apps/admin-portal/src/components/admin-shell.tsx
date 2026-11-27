@@ -79,9 +79,15 @@ export function AdminShell({
     },
     {
       href: "/analytics",
-      label: "Analytics & PDF Reports",
+      label: "Analytics & PDF",
       icon: BarChart3,
       active: pathname.startsWith("/analytics"),
+    },
+    {
+      href: "/governance",
+      label: "Governance & Restore",
+      icon: ShieldCheck,
+      active: pathname.startsWith("/governance"),
     },
   ];
 

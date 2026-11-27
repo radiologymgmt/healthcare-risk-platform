@@ -56,10 +56,10 @@ export function MobileLandingClient({ isDemoMode }: { isDemoMode: boolean }) {
               alt="Smiling family together outdoors"
               className="h-full w-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[var(--navy)]/90 via-[var(--navy)]/35 to-transparent flex flex-col justify-end p-5 text-white">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#64d8ea]">
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--navy)]/95 via-[var(--navy)]/60 to-transparent flex flex-col justify-end p-5 text-white">
+              <span className="inline-block w-fit rounded-full bg-[var(--navy)]/80 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#b8f0fa] mb-1">
                 2-Minute Care Check-In
-              </p>
+              </span>
               <h1 className="text-lg font-bold tracking-tight leading-snug">
                 Confirm Your Preventive Health Details
               </h1>
@@ -80,7 +80,7 @@ export function MobileLandingClient({ isDemoMode }: { isDemoMode: boolean }) {
                 </div>
                 <div className="rounded-lg bg-[var(--bg)] border border-[var(--border)] p-2.5 flex items-center gap-1.5 text-[11px] text-[var(--navy)] font-medium">
                   <CheckCircle2 className="h-3.5 w-3.5 text-[var(--teal)] shrink-0" />
-                  US Standard Units
+                  Clinician-Reviewed
                 </div>
               </div>
             </div>
