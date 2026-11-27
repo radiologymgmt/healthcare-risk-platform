@@ -1,0 +1,15 @@
+.git
+.gitignore
+.turbo
+**/node_modules
+**/.next
+**/dist
+**/*.log
+**/.env
+**/.env.*
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/coverage
+infra/terraform/.terraform
+infra/terraform/*.tfstate*

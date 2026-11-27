@@ -1,0 +1,112 @@
+# Local Synthetic Development Compose Stack (ZERO REAL PHI)
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: antigravity
+      POSTGRES_DB: healthcare_risk_dev
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U antigravity -d healthcare_risk_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rules-engine-api:
+    build:
+      context: .
+      dockerfile: services/rules-engine-api/Dockerfile
+    environment:
+      PORT: 8080
+      NODE_ENV: development
+      DATABASE_URL: postgresql://antigravity@postgres:5432/healthcare_risk_dev
+      INTEROP_WORKER_URL: http://interop-ingestion-worker:8080
+    ports:
+      - "4001:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  interop-ingestion-worker:
+    build:
+      context: .
+      dockerfile: services/interop-ingestion-worker/Dockerfile
+    environment:
+      PORT: 8080
+      NODE_ENV: development
+      DATABASE_URL: postgresql://antigravity@postgres:5432/healthcare_risk_dev
+      CLINICAL_PARSER_URL: http://clinical-parser-worker:8080
+    ports:
+      - "4002:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  clinical-parser-worker:
+    build:
+      context: .
+      dockerfile: services/clinical-parser-worker/Dockerfile
+    environment:
+      PORT: 8080
+      DATABASE_URL: postgresql://antigravity@postgres:5432/healthcare_risk_dev
+      RULES_ENGINE_API_URL: http://rules-engine-api:8080
+      PARSER_MODE: deterministic
+    ports:
+      - "4003:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  patient-web:
+    build:
+      context: .
+      dockerfile: apps/patient-web/Dockerfile
+    environment:
+      PORT: 8080
+      NODE_ENV: development
+      RULES_ENGINE_API_URL: http://rules-engine-api:8080
+    ports:
+      - "3003:8080"
+    depends_on:
+      - rules-engine-api
+
+  patient-mobile-pwa:
+    build:
+      context: .
+      dockerfile: apps/patient-mobile-pwa/Dockerfile
+    environment:
+      PORT: 8080
+      NODE_ENV: development
+      RULES_ENGINE_API_URL: http://rules-engine-api:8080
+    ports:
+      - "3004:8080"
+    depends_on:
+      - rules-engine-api
+
+  provider-dashboard:
+    build:
+      context: .
+      dockerfile: apps/provider-dashboard/Dockerfile
+    environment:
+      PORT: 8080
+      NODE_ENV: development
+      RULES_ENGINE_API_URL: http://rules-engine-api:8080
+    ports:
+      - "3005:8080"
+    depends_on:
+      - rules-engine-api
+
+  admin-portal:
+    build:
+      context: .
+      dockerfile: apps/admin-portal/Dockerfile
+    environment:
+      PORT: 8080
+      NODE_ENV: development
+      RULES_ENGINE_API_URL: http://rules-engine-api:8080
+    ports:
+      - "3008:8080"
+    depends_on:
+      - rules-engine-api

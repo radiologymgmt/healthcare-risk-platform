@@ -1,0 +1,10 @@
+project_id            = "your-baa-covered-gcp-project-id"
+region                = "us-central1"
+environment           = "prod"
+ar_repo_name          = "healthcare-risk-platform"
+image_tag             = "latest"
+db_tier               = "db-custom-2-7680"
+allowed_geo_countries = ["US"]
+admin_email_allowlist = "cmo@your-hospital.org,clinical-ops@your-hospital.org"
+admin_iap_members     = ["group:clinical-admins@your-hospital.org"]
+provider_iap_members  = ["group:clinicians@your-hospital.org"]
