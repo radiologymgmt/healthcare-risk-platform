@@ -6,7 +6,8 @@ import {
   resolvePortalIdentity,
 } from "./lib/rbac";
 
-const PUBLIC_PATHS = ["/unauthorized", "/api/auth/dev-session"];
+const PUBLIC_PATHS = ["/unauthorized", "/demo-gate", "/api/auth/dev-session", "/api/auth/demo-gate"];
+const DEMO_ACCESS_COOKIE = "hrp_demo_access";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -19,6 +20,23 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const isDemoMode = process.env.DEMO_MODE === "true";
+  const requiredDemoCode = process.env.DEMO_ACCESS_CODE?.trim();
+
+  // Optional passcode gate when hosting a public demo site
+  if (isDemoMode && requiredDemoCode) {
+    const granted = request.cookies.get(DEMO_ACCESS_COOKIE)?.value === requiredDemoCode;
+    if (!granted) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Demo access passcode required" }, { status: 401 });
+      }
+      const gateUrl = request.nextUrl.clone();
+      gateUrl.pathname = "/demo-gate";
+      gateUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(gateUrl);
+    }
+  }
+
   const identity = resolvePortalIdentity({
     iapEmail: request.headers.get("x-goog-authenticated-user-email"),
     iapUserId: request.headers.get("x-goog-authenticated-user-id"),
@@ -27,6 +45,7 @@ export function middleware(request: NextRequest) {
     cookieRole: request.cookies.get(DEV_ROLE_COOKIE)?.value ?? null,
     cookieActorId: request.cookies.get(DEV_ACTOR_COOKIE)?.value ?? null,
     isProduction: process.env.NODE_ENV === "production",
+    isDemoMode,
     adminEmailAllowlist: process.env.ADMIN_EMAIL_ALLOWLIST,
   });
 

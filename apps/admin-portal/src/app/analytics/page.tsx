@@ -16,6 +16,7 @@ export default async function AnalyticsPage() {
       actorRole={actorRole}
       authSource={authSource}
       isProduction={process.env.NODE_ENV === "production"}
+      isDemoMode={process.env.DEMO_MODE === "true"}
     >
       <AnalyticsAndPdf />
     </AdminShell>

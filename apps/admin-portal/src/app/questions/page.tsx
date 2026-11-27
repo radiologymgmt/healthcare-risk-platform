@@ -16,6 +16,7 @@ export default async function QuestionsPage() {
       actorRole={actorRole}
       authSource={authSource}
       isProduction={process.env.NODE_ENV === "production"}
+      isDemoMode={process.env.DEMO_MODE === "true"}
     >
       <QuestionsEditor />
     </AdminShell>

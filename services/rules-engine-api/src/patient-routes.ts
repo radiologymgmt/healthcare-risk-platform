@@ -9,6 +9,7 @@ import {
 } from "@healthcare/shared-contracts";
 import { evaluateClinicalRules, type ClinicalRuleRecord } from "./evaluator.js";
 import { writeAuditLog } from "./audit.js";
+import { isDemoModeEnabled } from "./demo-mode.js";
 
 const CreatePatientSessionSchema = z.object({
   first_name: z.string().min(1).max(100),

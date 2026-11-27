@@ -16,6 +16,7 @@ export default async function RulesPage() {
       actorRole={actorRole}
       authSource={authSource}
       isProduction={process.env.NODE_ENV === "production"}
+      isDemoMode={process.env.DEMO_MODE === "true"}
     >
       <RulesEditor />
     </AdminShell>

@@ -4,7 +4,7 @@ const RULES_ENGINE_API_URL =
   process.env.RULES_ENGINE_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:4001";
 
 export async function POST() {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && process.env.DEMO_MODE !== "true") {
     return NextResponse.json({ error: "Disabled in production" }, { status: 403 });
   }
   try {

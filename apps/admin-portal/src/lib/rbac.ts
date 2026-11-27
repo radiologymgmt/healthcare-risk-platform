@@ -17,6 +17,7 @@ export interface RbacInput {
   cookieRole?: string | null;
   cookieActorId?: string | null;
   isProduction: boolean;
+  isDemoMode?: boolean;
   adminEmailAllowlist?: string;
 }
 
@@ -36,8 +37,8 @@ function parseRole(raw: string | null | undefined): ActorRole | null {
 
 /**
  * Resolves the caller's RBAC identity from GCP Identity-Aware Proxy (IAP) headers,
- * or (in non-production environments) an HttpOnly dev-session cookie.
- * Never reads from browser localStorage/sessionStorage.
+ * or (in non-production / explicit DEMO_MODE=true environments) an HttpOnly dev-session cookie.
+ * Never reads from browser storage.
  */
 export function resolvePortalIdentity(input: RbacInput): PortalIdentity | null {
   const iapEmail = parseIapPrincipal(input.iapEmail);
@@ -61,8 +62,8 @@ export function resolvePortalIdentity(input: RbacInput): PortalIdentity | null {
     };
   }
 
-  // Production strictly requires GCP IAP identity
-  if (input.isProduction) {
+  // Production strictly requires GCP IAP identity unless DEMO_MODE=true is explicitly enabled
+  if (input.isProduction && !input.isDemoMode) {
     return null;
   }
 

@@ -12,3 +12,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 .DS_Store
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example

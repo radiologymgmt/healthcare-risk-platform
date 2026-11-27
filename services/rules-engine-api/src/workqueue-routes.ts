@@ -5,6 +5,7 @@ import { z } from "zod";
 import { type HipaaLogger } from "@healthcare/shared-contracts";
 import { writeAuditLog } from "./audit.js";
 import { requireRole, type AuthenticatedRequest } from "./rbac.js";
+import { isDemoModeEnabled } from "./demo-mode.js";
 
 const UuidSchema = z.string().uuid();
 

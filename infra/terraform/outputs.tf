@@ -32,3 +32,23 @@ output "frontend_service_uris" {
   description = "Cloud Run URIs for the 4 frontend portals (fronted by Cloud Armor / IAP)"
   value       = { for k, v in google_cloud_run_v2_service.frontends : k => v.uri }
 }
+
+output "db_setup_job_name" {
+  description = "Cloud Run Job name to run PostgreSQL 16 migrations and 54-rule seed inside the VPC"
+  value       = google_cloud_run_v2_job.db_setup.name
+}
+
+output "global_lb_ipv4" {
+  description = "Static Global IPv4 address for your 4 subdomain DNS A records"
+  value       = var.demo_domain != "" ? google_compute_global_address.lb_ip[0].address : null
+}
+
+output "demo_dns_records" {
+  description = "DNS A records to configure at your registrar for the 4 demo portals"
+  value = var.demo_domain != "" ? {
+    patient_web        = "A  intake.${var.demo_domain}   -> ${google_compute_global_address.lb_ip[0].address}"
+    patient_mobile_pwa = "A  mobile.${var.demo_domain}   -> ${google_compute_global_address.lb_ip[0].address}"
+    provider_dashboard = "A  provider.${var.demo_domain} -> ${google_compute_global_address.lb_ip[0].address}"
+    admin_portal       = "A  admin.${var.demo_domain}    -> ${google_compute_global_address.lb_ip[0].address}"
+  } : {}
+}

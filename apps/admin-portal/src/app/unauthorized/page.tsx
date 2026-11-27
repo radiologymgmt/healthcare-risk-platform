@@ -56,7 +56,7 @@ function UnauthorizedContent() {
             Unauthorized access attempts are blocked at middleware before reaching clinical
             configuration endpoints and recorded to immutable HIPAA audit logs.
           </p>
-          {process.env.NODE_ENV !== "production" && (
+          {(process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEMO_MODE === "true") && (
             <Button
               id="restore-dev-admin-btn"
               className="w-full"

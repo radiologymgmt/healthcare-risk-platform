@@ -74,3 +74,28 @@ variable "iap_oauth_client_secret" {
   sensitive   = true
   default     = ""
 }
+
+variable "demo_mode" {
+  description = "Enable synthetic-only DEMO_MODE=true across portals and APIs (NEVER enable in a PHI/BAA project)"
+  type        = bool
+  default     = false
+}
+
+variable "demo_access_code" {
+  description = "Optional shared passcode enforced via HttpOnly cookie when demo_mode = true"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "demo_domain" {
+  description = "Base domain for 4 subdomains (intake/mobile/provider/admin.<demo_domain>), e.g. demo.yourdomain.com"
+  type        = string
+  default     = ""
+}
+
+variable "use_vertex_ai" {
+  description = "Use live Vertex AI Gemini in clinical-parser-worker (set false for zero-cost deterministic synthetic demos)"
+  type        = bool
+  default     = true
+}

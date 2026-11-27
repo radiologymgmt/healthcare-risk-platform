@@ -1,0 +1,12 @@
+# Synthetic-Only Low-Cost GCP Demo Configuration (ZERO REAL PHI)
+project_id            = "your-non-phi-demo-project-id"
+region                = "us-central1"
+environment           = "dev" # Sets Cloud Run min_instance_count = 0 (scales to zero when idle)
+ar_repo_name          = "healthcare-risk-platform"
+image_tag             = "latest"
+db_tier               = "db-g1-small"
+demo_mode             = true
+demo_access_code      = "change-me-demo-passcode"
+demo_domain           = "demo.yourdomain.com"
+use_vertex_ai         = false # Uses deterministic synthetic NLP extractor (zero Vertex AI billing)
+allowed_geo_countries = ["US"]

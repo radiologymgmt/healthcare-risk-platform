@@ -1,0 +1,55 @@
+# Builds and pushes all 7 container images to Artifact Registry without deploying Cloud Run yet.
+# Used for initial bootstrap before `terraform apply` creates the Cloud Run services & VPC bindings.
+
+substitutions:
+  _REGION: us-central1
+  _AR_REPO: healthcare-risk-platform
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+steps:
+  - id: build-rules-engine-api
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: [build, -f, services/rules-engine-api/Dockerfile, -t, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/rules-engine-api:latest", .]
+
+  - id: build-interop-ingestion-worker
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: [build, -f, services/interop-ingestion-worker/Dockerfile, -t, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/interop-ingestion-worker:latest", .]
+
+  - id: build-clinical-parser-worker
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: [build, -f, services/clinical-parser-worker/Dockerfile, -t, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/clinical-parser-worker:latest", .]
+
+  - id: build-patient-web
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: [build, -f, apps/patient-web/Dockerfile, -t, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/patient-web:latest", .]
+
+  - id: build-patient-mobile-pwa
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: [build, -f, apps/patient-mobile-pwa/Dockerfile, -t, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/patient-mobile-pwa:latest", .]
+
+  - id: build-provider-dashboard
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: [build, -f, apps/provider-dashboard/Dockerfile, -t, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/provider-dashboard:latest", .]
+
+  - id: build-admin-portal
+    name: gcr.io/cloud-builders/docker
+    waitFor: ["-"]
+    args: [build, -f, apps/admin-portal/Dockerfile, -t, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/admin-portal:latest", .]
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/rules-engine-api:latest"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/interop-ingestion-worker:latest"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/clinical-parser-worker:latest"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/patient-web:latest"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/patient-mobile-pwa:latest"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/provider-dashboard:latest"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/admin-portal:latest"

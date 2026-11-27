@@ -3,7 +3,15 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ShieldCheck, SlidersHorizontal, ListChecks, Lock, BarChart3 } from "lucide-react";
+import {
+  ShieldCheck,
+  SlidersHorizontal,
+  ListChecks,
+  Lock,
+  BarChart3,
+  Rocket,
+  AlertTriangle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +21,7 @@ interface AdminShellProps {
   actorRole: string;
   authSource: string;
   isProduction: boolean;
+  isDemoMode?: boolean;
 }
 
 export function AdminShell({
@@ -21,6 +30,7 @@ export function AdminShell({
   actorRole,
   authSource,
   isProduction,
+  isDemoMode = false,
 }: AdminShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -41,7 +51,19 @@ export function AdminShell({
     }
   }
 
+  const showDevControls = !isProduction || isDemoMode;
+
   const navItems = [
+    ...(showDevControls
+      ? [
+          {
+            href: "/demo",
+            label: "Demo Hub",
+            icon: Rocket,
+            active: pathname.startsWith("/demo"),
+          },
+        ]
+      : []),
     {
       href: "/rules",
       label: "Clinical Rules & CPT/ICD-10",
@@ -64,6 +86,13 @@ export function AdminShell({
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      {isDemoMode && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-center text-xs font-medium text-amber-950 flex items-center justify-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+          <span>SYNTHETIC DEMO ENVIRONMENT &mdash; DO NOT ENTER REAL PHI</span>
+        </div>
+      )}
+
       <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between px-5">
           <div className="flex items-center gap-6">
@@ -113,7 +142,7 @@ export function AdminShell({
               <span className="text-[10px] text-muted-foreground">({authSource})</span>
             </div>
 
-            {!isProduction && (
+            {showDevControls && (
               <div className="flex items-center gap-1.5">
                 <label htmlFor="dev-rbac-switch" className="sr-only">
                   Simulate RBAC Role
@@ -125,7 +154,7 @@ export function AdminShell({
                   value={actorRole}
                   onChange={(e) => void handleRoleSwitch(e.target.value)}
                   className="h-8 rounded-md border border-input bg-card px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  title="Dev-only HttpOnly cookie switcher to test RBAC middleware"
+                  title="Demo HttpOnly cookie switcher to test RBAC middleware"
                 >
                   <option value="ADMIN">RBAC: ADMIN</option>
                   <option value="PROVIDER">RBAC: PROVIDER (403)</option>

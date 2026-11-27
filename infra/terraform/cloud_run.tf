@@ -134,7 +134,11 @@ resource "google_cloud_run_v2_service" "clinical_parser" {
       }
       env {
         name  = "USE_VERTEX_AI"
-        value = "true"
+        value = var.use_vertex_ai ? "true" : "false"
+      }
+      env {
+        name  = "PARSER_MODE"
+        value = var.use_vertex_ai ? "vertex" : "deterministic"
       }
       env {
         name = "DATABASE_URL"
@@ -209,6 +213,10 @@ resource "google_cloud_run_v2_service" "rules_engine_api" {
       env {
         name  = "NODE_ENV"
         value = "production"
+      }
+      env {
+        name  = "DEMO_MODE"
+        value = var.demo_mode ? "true" : "false"
       }
       env {
         name  = "ADMIN_EMAIL_ALLOWLIST"
@@ -303,12 +311,78 @@ resource "google_cloud_run_v2_service" "frontends" {
         value = "production"
       }
       env {
+        name  = "DEMO_MODE"
+        value = var.demo_mode ? "true" : "false"
+      }
+      env {
+        name  = "DEMO_ACCESS_CODE"
+        value = var.demo_access_code
+      }
+      env {
         name  = "RULES_ENGINE_API_URL"
         value = google_cloud_run_v2_service.rules_engine_api.uri
       }
       env {
         name  = "ADMIN_EMAIL_ALLOWLIST"
         value = var.admin_email_allowlist
+      }
+      env {
+        name  = "DEMO_PATIENT_WEB_URL"
+        value = var.demo_domain != "" ? "https://intake.${var.demo_domain}" : "http://localhost:3003"
+      }
+      env {
+        name  = "DEMO_MOBILE_PWA_URL"
+        value = var.demo_domain != "" ? "https://mobile.${var.demo_domain}" : "http://localhost:3004"
+      }
+      env {
+        name  = "DEMO_PROVIDER_URL"
+        value = var.demo_domain != "" ? "https://provider.${var.demo_domain}" : "http://localhost:3005"
+      }
+      env {
+        name  = "DEMO_ADMIN_URL"
+        value = var.demo_domain != "" ? "https://admin.${var.demo_domain}/rules" : "/rules"
+      }
+    }
+  }
+}
+
+# Allow HTTPS Load Balancer traffic into frontend Cloud Run services (still locked to INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER)
+resource "google_cloud_run_v2_service_iam_member" "frontend_lb_invoker" {
+  for_each = {
+    for k, v in local.frontend_services : k => v
+    if !v.iap || var.demo_mode
+  }
+  location = var.region
+  name     = google_cloud_run_v2_service.frontends[each.key].name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# Cloud Run Job inside the Serverless VPC to run PostgreSQL 16 migrations + 54-rule seed against Private-IP Cloud SQL
+resource "google_cloud_run_v2_job" "db_setup" {
+  name     = "${local.prefix}-db-setup"
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.rules_engine.email
+      vpc_access {
+        connector = google_vpc_access_connector.serverless.id
+        egress    = "PRIVATE_RANGES_ONLY"
+      }
+      containers {
+        image   = "${local.ar_base}/rules-engine-api:${var.image_tag}"
+        command = ["sh", "-c"]
+        args    = ["node packages/database/dist/migrate.js && node packages/database/dist/seed.js"]
+        env {
+          name = "DATABASE_URL"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.database_url.secret_id
+              version = "latest"
+            }
+          }
+        }
       }
     }
   }
@@ -330,14 +404,14 @@ resource "google_compute_backend_service" "frontend_backend" {
   for_each        = local.frontend_services
   name            = "${local.prefix}-${each.key}-backend"
   protocol        = "HTTP"
-  security_policy = each.value.iap ? null : google_compute_security_policy.patient_waf.id
+  security_policy = (!each.value.iap || var.demo_mode) ? google_compute_security_policy.patient_waf.id : null
 
   backend {
     group = google_compute_region_network_endpoint_group.frontend_neg[each.key].id
   }
 
   dynamic "iap" {
-    for_each = each.value.iap && var.iap_oauth_client_id != "" ? [1] : []
+    for_each = each.value.iap && !var.demo_mode && var.iap_oauth_client_id != "" ? [1] : []
     content {
       enabled              = true
       oauth2_client_id     = var.iap_oauth_client_id

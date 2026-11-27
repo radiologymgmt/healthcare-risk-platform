@@ -7,7 +7,7 @@ import { DEV_ACTOR_COOKIE, DEV_ROLE_COOKIE } from "@/lib/rbac";
  * (ADMIN vs PROVIDER vs PATIENT). Disabled in production where GCP IAP is mandatory.
  */
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && process.env.DEMO_MODE !== "true") {
     return NextResponse.json(
       { error: "Dev role switching is disabled in production (GCP IAP required)." },
       { status: 403 },

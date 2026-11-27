@@ -15,6 +15,7 @@ import { computeDerivedMetrics, enrichAnswersFromPedigree } from "./derived-metr
 import { writeAuditLog } from "./audit.js";
 import { requireRole, type AuthenticatedRequest } from "./rbac.js";
 import { registerAdminAnalyticsAndPdfRoutes } from "./admin-analytics-pdf.js";
+import { isDemoModeEnabled } from "./demo-mode.js";
 
 const UuidParamSchema = z.string().uuid();
 
@@ -753,6 +754,38 @@ export function createAdminRouter(pool: Pool, logger: HipaaLogger): Router {
 
   // Phase 5: Executive Analytics & Headless PDF Engine
   registerAdminAnalyticsAndPdfRoutes(router, pool, logger);
+
+  // Synthetic Demo Reset (strictly disabled in real production unless DEMO_MODE=true)
+  router.post("/demo-reset", async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!isDemoModeEnabled()) {
+      res.status(403).json({ error: "Demo reset disabled in production" });
+      return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `TRUNCATE TABLE appointments, magic_links, workqueue_items, triggered_pathways,
+                        assessment_responses, assessment_sessions, clinical_documents, patients
+         RESTART IDENTITY CASCADE`,
+      );
+      await writeAuditLog(client, {
+        actor_id: req.actor!.actor_id,
+        actor_role: req.actor!.actor_role,
+        action: "RESET_DEMO_DATA",
+        resource_type: "demo_environment",
+        ip_address: extractClientIp(req),
+        metadata: { preserved: ["questions", "clinical_rules", "audit_logs"] },
+      });
+      await client.query("COMMIT");
+      res.json({ reset: true });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      next(err);
+    } finally {
+      client.release();
+    }
+  });
 
   return router;
 }

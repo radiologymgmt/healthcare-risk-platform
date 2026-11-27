@@ -20,6 +20,7 @@ export function resolveProviderIdentity(input: {
   headerRole?: string | null;
   headerActorId?: string | null;
   isProduction: boolean;
+  isDemoMode?: boolean;
 }): ProviderIdentity | null {
   const iapEmail = parseIap(input.iapEmail);
   const iapId = parseIap(input.iapUserId);
@@ -34,7 +35,7 @@ export function resolveProviderIdentity(input: {
     };
   }
 
-  if (input.isProduction) return null;
+  if (input.isProduction && !input.isDemoMode) return null;
 
   const rawRole = input.headerRole?.trim().toUpperCase() as ActorRole | undefined;
   if (rawRole && VALID_ROLES.has(rawRole)) {
