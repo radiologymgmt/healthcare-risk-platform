@@ -13,7 +13,8 @@
     "db:migrate": "pnpm --filter @healthcare/database migrate",
     "db:seed": "pnpm --filter @healthcare/database seed",
     "db:setup": "pnpm db:migrate && pnpm db:seed",
-    "dev:rules-api": "pnpm --filter @healthcare/rules-engine-api dev"
+    "dev:rules-api": "pnpm --filter @healthcare/rules-engine-api dev",
+    "dev:admin": "pnpm --filter @healthcare/admin-portal dev"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

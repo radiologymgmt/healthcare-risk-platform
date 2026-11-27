@@ -11,6 +11,7 @@ import {
 } from "@healthcare/shared-contracts";
 import { evaluateClinicalRules, type ClinicalRuleRecord } from "./evaluator.js";
 import { writeAuditLog } from "./audit.js";
+import { createAdminRouter } from "./admin-routes.js";
 
 const UuidParamSchema = z.string().uuid();
 
@@ -507,6 +508,9 @@ export function createApp(
     },
   );
 
+  // Mount RBAC-protected Admin Portal CRUD API (/api/v1/admin/questions, /api/v1/admin/rules)
+  app.use("/api/v1/admin", createAdminRouter(pool, logger));
+
   // HIPAA-safe error handler (never echoes PHI or raw SQL details)
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const pgCode =
@@ -516,6 +520,10 @@ export function createApp(
 
     if (pgCode === "23503") {
       res.status(400).json({ error: "Referenced question_key or foreign record does not exist" });
+      return;
+    }
+    if (pgCode === "23505") {
+      res.status(409).json({ error: "A record with that unique key already exists" });
       return;
     }
 
