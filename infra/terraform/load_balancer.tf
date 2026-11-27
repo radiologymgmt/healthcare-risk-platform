@@ -24,8 +24,8 @@ resource "google_compute_global_address" "lb_ip" {
 }
 
 resource "google_compute_managed_ssl_certificate" "demo_cert" {
-  count = local.enable_lb ? 1 : 0
-  name  = "${local.prefix}-managed-ssl-cert"
+  count       = local.enable_lb ? 1 : 0
+  name_prefix = "${local.prefix}-ssl-"
 
   managed {
     domains = [
@@ -34,6 +34,10 @@ resource "google_compute_managed_ssl_certificate" "demo_cert" {
       local.lb_hosts.provider,
       local.lb_hosts.admin,
     ]
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
