@@ -9,18 +9,18 @@ import {
 } from "./index.js";
 
 describe("@healthcare/shared-contracts", () => {
-  it("contains all 54 canonical clinical tools (35 patient/gateway + 19 EHR/lab)", () => {
-    expect(CLINICAL_TOOL_REGISTRY).toHaveLength(54);
+  it("contains all 69 canonical clinical tools (47 patient/gateway + 22 EHR/lab)", () => {
+    expect(CLINICAL_TOOL_REGISTRY).toHaveLength(69);
 
     const patientReported = CLINICAL_TOOL_REGISTRY.filter(
       (t) => t.category === "PATIENT_REPORTED_GATEWAY",
     );
     const ehrDerived = CLINICAL_TOOL_REGISTRY.filter((t) => t.category === "EHR_LAB_DERIVED");
-    expect(patientReported).toHaveLength(35);
-    expect(ehrDerived).toHaveLength(19);
+    expect(patientReported).toHaveLength(47);
+    expect(ehrDerived).toHaveLength(22);
 
     const uniqueCodes = new Set(CLINICAL_TOOL_REGISTRY.map((t) => t.rule_code));
-    expect(uniqueCodes.size).toBe(54);
+    expect(uniqueCodes.size).toBe(69);
   });
 
   it("recursively redacts all PHI keys while preserving non-PHI operational telemetry", () => {

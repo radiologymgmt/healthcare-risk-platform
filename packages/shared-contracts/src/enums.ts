@@ -26,6 +26,10 @@ export const QuestionDomainSchema = z.enum([
   "MSK",
   "Hepatology",
   "Acute",
+  "Gastroenterology",
+  "Endocrine",
+  "Metabolic",
+  "Behavioral",
 ]);
 export type QuestionDomain = z.infer<typeof QuestionDomainSchema>;
 
@@ -54,6 +58,10 @@ export const RuleSpecialtySchema = z.enum([
   "Hepatology",
   "Sleep",
   "Bone",
+  "Gastroenterology",
+  "Endocrinology",
+  "Metabolic & Renal",
+  "Behavioral Health",
 ]);
 export type RuleSpecialty = z.infer<typeof RuleSpecialtySchema>;
 

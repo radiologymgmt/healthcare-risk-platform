@@ -41,7 +41,7 @@ describe("Rules Engine API Integration Tests (PostgreSQL 16 + Synthetic Data)", 
   it("GET /api/v1/questionnaire/config returns active questions, knockout gates, and respects filters", async () => {
     const app = buildApp();
 
-    // Default (patient-facing, excludes EHR_LAB only questions)
+    // Default (patient-facing core assessment: excludes EHR_LAB and opt-in supplemental domains)
     const allRes = await request(app).get("/api/v1/questionnaire/config");
     expect(allRes.status).toBe(200);
     expect(allRes.body.rules_version_snapshot).toBeGreaterThanOrEqual(1);
@@ -50,6 +50,25 @@ describe("Rules Engine API Integration Tests (PostgreSQL 16 + Synthetic Data)", 
     expect(
       allRes.body.questions.every((q: { data_source: string }) => q.data_source !== "EHR_LAB"),
     ).toBe(true);
+    const defaultKeys: string[] = allRes.body.questions.map(
+      (q: { question_key: string }) => q.question_key,
+    );
+    expect(defaultKeys).not.toContain("crc_screening_up_to_date");
+    expect(defaultKeys).not.toContain("has_mood_or_anxiety_concerns");
+    expect(defaultKeys).not.toContain("has_back_or_neck_pain");
+
+    // Opting into supplemental screenings unlocks those domains cleanly
+    const suppRes = await request(app).get(
+      "/api/v1/questionnaire/config?modules=all,supp_gi_endocrine,supp_behavioral&sex_at_birth=Female&age=55",
+    );
+    expect(suppRes.status).toBe(200);
+    const suppKeys: string[] = suppRes.body.questions.map(
+      (q: { question_key: string }) => q.question_key,
+    );
+    expect(suppKeys).toContain("crc_screening_up_to_date");
+    expect(suppKeys).toContain("has_known_thyroid_nodule");
+    expect(suppKeys).toContain("has_mood_or_anxiety_concerns");
+    expect(suppKeys).not.toContain("has_back_or_neck_pain"); // Spine pack not selected
 
     // Filter by modules=oncology and sex_at_birth=Male (should exclude female-only questions)
     const maleOncRes = await request(app).get(
@@ -113,7 +132,7 @@ describe("Rules Engine API Integration Tests (PostgreSQL 16 + Synthetic Data)", 
     );
     const webSessionId = webSessionRes.rows[0]!.id;
 
-    // 4. Submit patient-entered responses & evaluate across all 54 rules
+    // 4. Submit patient-entered responses & evaluate across all 69 rules
     const evalRes = await request(app)
       .post(`/api/v1/sessions/${webSessionId}/evaluate`)
       .send({
@@ -127,7 +146,7 @@ describe("Rules Engine API Integration Tests (PostgreSQL 16 + Synthetic Data)", 
       });
 
     expect(evalRes.status).toBe(200);
-    expect(evalRes.body.evaluated_rule_count).toBe(54);
+    expect(evalRes.body.evaluated_rule_count).toBe(69);
     expect(evalRes.body.highest_acuity).toBe("ACUTE_RED_FLAG");
     expect(evalRes.body.workqueue_priority).toBe("HIGH");
     expect(evalRes.body.workqueue_item_id).toBeTruthy();

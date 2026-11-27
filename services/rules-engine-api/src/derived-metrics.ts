@@ -43,6 +43,19 @@ export interface DerivedMetrics {
   aha_prevent_10yr_risk: number;
   frax_major_risk: number;
   mesa_cac_score: number | null;
+  dutch_lipid_fh_score: number;
+  odi_score: number | null;
+  ad8_score: number | null;
+  cat_score: number | null;
+  mmrc_grade: number | null;
+  kccq12_score: number | null;
+  hf_risk_score: number;
+  sarc_f_score: number | null;
+  ada_diabetes_risk_score: number | null;
+  audit_c_score: number | null;
+  phq9_score: number | null;
+  gad7_score: number | null;
+  behavioral_max_score: number | null;
   [key: string]: number | boolean | null;
 }
 
@@ -425,6 +438,81 @@ export function computeDerivedMetrics(
     frax_major_risk = round3(Math.min(75, risk));
   }
 
+  // --- Supplemental: Dutch Lipid Clinic Network (FH) ---
+  const ldl = num(answers.lab_ldl_mg_dl);
+  let dutch_lipid_fh_score = 0;
+  if (ldl !== null) {
+    if (ldl >= 330) dutch_lipid_fh_score += 8;
+    else if (ldl >= 250) dutch_lipid_fh_score += 5;
+    else if (ldl >= 190) dutch_lipid_fh_score += 3;
+    else if (ldl >= 155) dutch_lipid_fh_score += 1;
+  } else if (bool(answers.has_very_high_cholesterol_or_early_heart_disease)) {
+    dutch_lipid_fh_score += 3;
+  }
+  if (bool(answers.has_tendon_xanthomas_or_corneal_arcus)) dutch_lipid_fh_score += 6;
+  if (bool(answers.has_family_premature_cad_or_fh)) dutch_lipid_fh_score += 2;
+  if (bool(answers.has_vascular_disease)) dutch_lipid_fh_score += 2;
+
+  // --- Supplemental: Spine ODI, AD8, COPD CAT/mMRC, Heart Failure KCCQ-12, SARC-F ---
+  const odi_score = num(answers.odi_disability_percent);
+  const ad8_score = num(answers.ad8_total_score);
+  const cat_score = num(answers.copd_cat_score);
+  const mmrc_grade = num(answers.mmrc_dyspnea_grade);
+  const kccq12_score = num(answers.kccq12_symptom_score);
+  const sarc_f_score = num(answers.sarc_f_total_score);
+
+  let hf_risk_score = 0;
+  if (bool(answers.has_heart_failure)) hf_risk_score += 2;
+  if (bool(answers.has_hf_symptoms_shortness_breath_swelling)) hf_risk_score += 1;
+  if (bool(answers.has_hypertension)) hf_risk_score += 1;
+  if (bool(answers.has_diabetes)) hf_risk_score += 1;
+  if (age >= 65) hf_risk_score += 1;
+
+  // --- Supplemental: ADA Type 2 Diabetes Risk Test ---
+  // Only scored when patient opts into metabolic check or explicitly provides metabolic risk inputs
+  const hasMetabolicAnswers =
+    bool(answers.has_diabetes_or_kidney_risk_check) ||
+    answers.has_family_history_diabetes !== undefined ||
+    answers.is_physically_active_regularly !== undefined ||
+    answers.has_history_gestational_diabetes !== undefined;
+  let ada_diabetes_risk_score: number | null = null;
+  if (hasMetabolicAnswers) {
+    let score = 0;
+    if (age >= 60) score += 3;
+    else if (age >= 50) score += 2;
+    else if (age >= 40) score += 1;
+    if (isMale) score += 1;
+    if (isFemale && bool(answers.has_history_gestational_diabetes)) score += 1;
+    if (bool(answers.has_family_history_diabetes)) score += 1;
+    if (bool(answers.has_hypertension)) score += 1;
+    if (answers.is_physically_active_regularly === false || answers.is_physically_active_regularly === "false") {
+      score += 1;
+    }
+    if (bmi !== null) {
+      if (bmi >= 40) score += 3;
+      else if (bmi >= 30) score += 2;
+      else if (bmi >= 25) score += 1;
+    }
+    ada_diabetes_risk_score = score;
+  }
+
+  // --- Supplemental: AUDIT-C Validated Alcohol Risk (0-12) ---
+  const auditFreq = num(answers.audit_c_frequency_score);
+  const auditQty = num(answers.audit_c_quantity_score);
+  const auditBinge = num(answers.audit_c_binge_score);
+  const audit_c_score =
+    auditFreq !== null || auditQty !== null || auditBinge !== null
+      ? (auditFreq ?? 0) + (auditQty ?? 0) + (auditBinge ?? 0)
+      : null;
+
+  // --- Supplemental: PHQ-9 & GAD-7 Behavioral Wellness ---
+  const phq9_score = num(answers.phq9_total_score);
+  const gad7_score = num(answers.gad7_total_score);
+  const behavioral_max_score =
+    phq9_score !== null && gad7_score !== null
+      ? Math.max(phq9_score, gad7_score)
+      : phq9_score ?? gad7_score;
+
   return {
     age,
     bmi,
@@ -454,5 +542,18 @@ export function computeDerivedMetrics(
     aha_prevent_10yr_risk,
     frax_major_risk,
     mesa_cac_score,
+    dutch_lipid_fh_score,
+    odi_score,
+    ad8_score,
+    cat_score,
+    mmrc_grade,
+    kccq12_score,
+    hf_risk_score,
+    sarc_f_score,
+    ada_diabetes_risk_score,
+    audit_c_score,
+    phq9_score,
+    gad7_score,
+    behavioral_max_score,
   };
 }

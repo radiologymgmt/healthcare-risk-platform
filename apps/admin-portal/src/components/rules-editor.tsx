@@ -76,6 +76,10 @@ const SPECIALTY_OPTIONS = [
   "MSK",
   "Hematology",
   "Hepatology",
+  "Gastroenterology",
+  "Endocrinology",
+  "Metabolic & Renal",
+  "Behavioral Health",
 ];
 
 const CPT_REGEX = /^[A-Z0-9]{4,7}$/i;

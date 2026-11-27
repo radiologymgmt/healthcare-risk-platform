@@ -31,7 +31,7 @@ describe("Rules Engine Unit Tests (Synthetic Patient Profiles)", () => {
       REF_DATE,
     );
 
-    expect(outcome.evaluated_rule_count).toBe(54);
+    expect(outcome.evaluated_rule_count).toBe(69);
     expect(outcome.triggered_pathways).toHaveLength(0);
     expect(outcome.highest_acuity).toBeNull();
     expect(outcome.workqueue_priority).toBeNull();
@@ -194,7 +194,7 @@ describe("Rules Engine Unit Tests (Synthetic Patient Profiles)", () => {
     expect(codes).toContain("STOP_BANG");
   });
 
-  it("All 54 clinical rules are reachable and trigger cleanly across synthetic profiles", () => {
+  it("All 69 clinical rules are reachable and trigger cleanly across synthetic profiles", () => {
     const syntheticProfiles: Array<{
       patient: { dob: string; sex_at_birth: "Female" | "Male" };
       answers: Record<string, unknown>;
@@ -210,6 +210,10 @@ describe("Rules Engine Unit Tests (Synthetic Patient Profiles)", () => {
           pack_years: 35,
           asbestos_exposure_years: 10,
           copd_history: true,
+          copd_cat_score: 18,
+          mmrc_dyspnea_grade: "2",
+          lung_rads_category: "4A",
+          prior_ldct_nodule_size_mm: 9,
           alcohol_drinks_per_week: 12,
           has_thunderclap_headache: true,
           has_acute_tearing_chest_back_pain: true,
@@ -224,6 +228,7 @@ describe("Rules Engine Unit Tests (Synthetic Patient Profiles)", () => {
           has_prior_dvt_or_pe: true,
           heart_rate_bpm: 110,
           has_personal_breast_cancer: false,
+          has_prior_chest_radiation_young: true,
           has_atypical_hyperplasia_or_lcis: true,
           known_brca_or_lynch_family_mutation: true,
           first_degree_breast_cancer_count: 2,
@@ -268,8 +273,19 @@ describe("Rules Engine Unit Tests (Synthetic Patient Profiles)", () => {
           has_exertional_calf_pain_relieved_by_rest: true,
           has_family_history_aaa: true,
           coronary_calcium_agatston_score: 320,
+          has_very_high_cholesterol_or_early_heart_disease: true,
+          has_tendon_xanthomas_or_corneal_arcus: true,
+          has_family_premature_cad_or_fh: true,
+          lab_ldl_mg_dl: 225,
+          lab_lpa_nmol_l: 160,
+          has_carotid_bruit_or_prior_carotid_stenosis: true,
+          has_hf_symptoms_shortness_breath_swelling: true,
+          kccq12_symptom_score: 52,
+          lab_nt_probnp_pg_ml: 410,
           has_headaches: true,
           hit6_total_score: 64,
+          has_memory_or_thinking_changes: true,
+          ad8_total_score: 3,
           cognitive_moca_score: 21,
           has_family_huntingtons_or_ataxia: true,
           snoring_loud: true,
@@ -278,7 +294,32 @@ describe("Rules Engine Unit Tests (Synthetic Patient Profiles)", () => {
           has_prior_fragility_fracture: true,
           dexa_femoral_neck_t_score: -2.8,
           fall_count_past_12_months: 3,
+          has_muscle_weakness_or_mobility_difficulty: true,
+          sarc_f_total_score: 6,
           koos_hoos_symptom_score: 45,
+          has_back_or_neck_pain: true,
+          has_cauda_equina_red_flags: true,
+          odi_disability_percent: 54,
+          crc_screening_up_to_date: false,
+          has_known_thyroid_nodule: true,
+          thyroid_nodule_tirads_level: "TR4",
+          thyroid_nodule_size_cm: 1.6,
+          has_known_pancreatic_cyst: true,
+          pancreatic_cyst_size_cm: 2.2,
+          pancreatic_cyst_worrisome_features: true,
+          consumes_alcohol: true,
+          audit_c_frequency_score: "3",
+          audit_c_quantity_score: "1",
+          audit_c_binge_score: "1",
+          has_diabetes_or_kidney_risk_check: true,
+          has_family_history_diabetes: true,
+          is_physically_active_regularly: false,
+          has_history_gestational_diabetes: true,
+          lab_hba1c_percent: 6.2,
+          lab_uacr_mg_g: 48,
+          has_mood_or_anxiety_concerns: true,
+          phq9_total_score: 14,
+          gad7_total_score: 12,
           isth_bat_bleeding_score: 8,
           lab_ast_u_l: 105,
           lab_alt_u_l: 48,
@@ -324,6 +365,6 @@ describe("Rules Engine Unit Tests (Synthetic Patient Profiles)", () => {
       (code) => !allTriggered.has(code),
     );
     expect(untriggered).toEqual([]);
-    expect(allTriggered.size).toBe(54);
+    expect(allTriggered.size).toBe(69);
   });
 });

@@ -1461,4 +1461,638 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     display_conditions: {},
     sort_order: 620,
   },
+
+  // =========================================================================
+  // 8. SUPPLEMENTAL CLINICAL MODELS & OPT-IN SCREENERS (sort 700-950)
+  // =========================================================================
+
+  // Dense Breast & Prior Chest Radiation (Oncology — Female, age >= 25)
+  {
+    question_key: "has_prior_chest_radiation_young",
+    domain: "Oncology",
+    label_plain_english:
+      "Did you ever receive radiation therapy to your chest area between ages 10 and 30 (for example, for lymphoma)?",
+    helper_tooltip:
+      "Women with prior chest radiation before age 30 or dense breast tissue often benefit from adding annual breast MRI or supplemental ultrasound.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "HYBRID",
+    is_knockout_gate: true,
+    display_conditions: { sex_at_birth: "Female", min_age: 25 },
+    sort_order: 700,
+  },
+
+  // Lung-RADS Nodule Follow-Up (Pulmonology — EHR Radiology only, 0 patient burden)
+  {
+    question_key: "lung_rads_category",
+    domain: "Pulmonology",
+    label_plain_english: "Most recent Lung-RADS assessment category from low-dose chest CT.",
+    helper_tooltip:
+      "EHR radiology finding used to ensure timely 3- or 6-month repeat imaging or diagnostic workup for Lung-RADS 3, 4A, 4B, or 4X nodules.",
+    input_type: "select",
+    options_json: [
+      { value: "1", label: "Lung-RADS 1 (Negative)" },
+      { value: "2", label: "Lung-RADS 2 (Benign Appearance)" },
+      { value: "3", label: "Lung-RADS 3 (Probably Benign — 6-mo LDCT)" },
+      { value: "4A", label: "Lung-RADS 4A (Suspicious — 3-mo CT / PET)" },
+      { value: "4B", label: "Lung-RADS 4B (Very Suspicious — Diagnostic CT/PET)" },
+      { value: "4X", label: "Lung-RADS 4X (Suspicious Additional Features)" },
+    ],
+    data_source: "EHR_LAB",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 40 },
+    sort_order: 705,
+  },
+  {
+    question_key: "prior_ldct_nodule_size_mm",
+    domain: "Pulmonology",
+    label_plain_english: "Largest solid pulmonary nodule diameter on prior chest CT (mm).",
+    helper_tooltip: "EHR chest CT measurement supporting Lung-RADS follow-up intervals.",
+    input_type: "lab_numeric",
+    options_json: [],
+    data_source: "EHR_LAB",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 40 },
+    sort_order: 710,
+  },
+
+  // COPD Assessment Test (CAT) / mMRC Dyspnea (Pulmonology — gated behind copd_history: true)
+  {
+    question_key: "copd_cat_score",
+    domain: "Pulmonology",
+    label_plain_english:
+      "On a scale of 0 to 40, how much do cough, phlegm, chest tightness, and breathlessness affect your daily life (COPD Assessment Test)?",
+    helper_tooltip:
+      "A score of 10 or higher helps your care team evaluate whether breathing tests or a detailed chest CT could improve symptom control.",
+    input_type: "number",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 40, depends_on: { copd_history: true } },
+    sort_order: 715,
+  },
+  {
+    question_key: "mmrc_dyspnea_grade",
+    domain: "Pulmonology",
+    label_plain_english: "How much does shortness of breath limit your daily walking?",
+    helper_tooltip:
+      "Helps your clinician measure breathing comfort and decide whether pulmonary function testing or chest imaging is helpful.",
+    input_type: "select",
+    options_json: [
+      { value: "0", label: "0 — Only breathless with strenuous exercise" },
+      { value: "1", label: "1 — Breathless when hurrying or walking up a slight hill" },
+      { value: "2", label: "2 — Walk slower than peers or stop for breath on flat ground" },
+      { value: "3", label: "3 — Stop for breath after walking about 100 yards" },
+      { value: "4", label: "4 — Too breathless to leave home or breathless when dressing" },
+    ],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 40, depends_on: { copd_history: true } },
+    sort_order: 720,
+  },
+
+  // Dutch Lipid Clinic Network (FH) & Lp(a) (Cardio — 1 knockout gate + follow-ups + EHR labs)
+  {
+    question_key: "has_very_high_cholesterol_or_early_heart_disease",
+    domain: "Cardio",
+    label_plain_english:
+      "Have you ever been told you have very high LDL cholesterol (190 or above), inherited high cholesterol, or early heart disease in your family?",
+    helper_tooltip:
+      "Inherited cholesterol conditions can raise heart risk silently at younger ages and often benefit from early cardiac calcium or CT imaging.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "HYBRID",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 18 },
+    sort_order: 725,
+  },
+  {
+    question_key: "has_tendon_xanthomas_or_corneal_arcus",
+    domain: "Cardio",
+    label_plain_english:
+      "Has a doctor ever noted cholesterol deposits on your Achilles/hand tendons or a pale ring around your iris before age 45?",
+    helper_tooltip: "Key physical sign of inherited high cholesterol (familial hypercholesterolemia).",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "HYBRID",
+    is_knockout_gate: false,
+    display_conditions: { depends_on: { has_very_high_cholesterol_or_early_heart_disease: true } },
+    sort_order: 730,
+  },
+  {
+    question_key: "has_family_premature_cad_or_fh",
+    domain: "Cardio",
+    label_plain_english:
+      "Has a parent, sibling, or child had a heart attack or bypass/stent before age 55 (men) or 60 (women), or diagnosed inherited high cholesterol?",
+    helper_tooltip:
+      "Family history of early heart disease helps identify who benefits most from early coronary imaging and preventive treatment.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { depends_on: { has_very_high_cholesterol_or_early_heart_disease: true } },
+    sort_order: 735,
+  },
+  {
+    question_key: "lab_ldl_mg_dl",
+    domain: "Cardio",
+    label_plain_english: "Untreated or peak LDL cholesterol (mg/dL).",
+    helper_tooltip: "EHR lipid lab input for Dutch Lipid Clinic Network (FH) scoring.",
+    input_type: "lab_numeric",
+    options_json: [],
+    data_source: "EHR_LAB",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 18 },
+    sort_order: 740,
+  },
+  {
+    question_key: "lab_lpa_nmol_l",
+    domain: "Cardio",
+    label_plain_english: "Lipoprotein(a) [Lp(a)] concentration (nmol/L).",
+    helper_tooltip: "EHR lipid risk enhancer (>= 125 nmol/L indicates elevated inherited cardiovascular risk).",
+    input_type: "lab_numeric",
+    options_json: [],
+    data_source: "EHR_LAB",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 18 },
+    sort_order: 745,
+  },
+
+  // SVS Carotid Artery Stenosis (Cardio — 1 knockout gate, age >= 50)
+  {
+    question_key: "has_carotid_bruit_or_prior_carotid_stenosis",
+    domain: "Cardio",
+    label_plain_english:
+      "Has a doctor ever heard a narrowing sound in your neck artery or told you that you have carotid artery plaque or narrowing?",
+    helper_tooltip:
+      "Helps determine whether a painless carotid ultrasound of the neck arteries is recommended to help prevent stroke.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "HYBRID",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 50 },
+    sort_order: 750,
+  },
+
+  // Heart Failure Risk & KCCQ-12 (Cardio — 1 knockout gate, age >= 40)
+  {
+    question_key: "has_hf_symptoms_shortness_breath_swelling",
+    domain: "Cardio",
+    label_plain_english:
+      "Do you experience shortness of breath when lying flat, waking up breathless at night, or persistent swelling in your ankles or legs?",
+    helper_tooltip:
+      "These symptoms can be early signs of heart strain, where a painless heart ultrasound (echocardiogram) gives clear answers.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 40 },
+    sort_order: 755,
+  },
+  {
+    question_key: "kccq12_symptom_score",
+    domain: "Cardio",
+    label_plain_english:
+      "How much do breathing, fatigue, or leg swelling symptoms limit your everyday activities (0 = severely limited, 100 = no limitations)?",
+    helper_tooltip:
+      "Lower scores (below 75) signal meaningful daily symptom impact and help prioritize a heart ultrasound and cardiology review.",
+    input_type: "number",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 40, depends_on: { has_hf_symptoms_shortness_breath_swelling: true } },
+    sort_order: 760,
+  },
+  {
+    question_key: "lab_nt_probnp_pg_ml",
+    domain: "Cardio",
+    label_plain_english: "Serum NT-proBNP level (pg/mL).",
+    helper_tooltip: "EHR cardiac biomarker supporting heart failure evaluation (>= 125 pg/mL).",
+    input_type: "lab_numeric",
+    options_json: [],
+    data_source: "EHR_LAB",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 40 },
+    sort_order: 765,
+  },
+
+  // AD8 Cognitive / Dementia Screener (Neurology — 1 knockout gate, age >= 55)
+  {
+    question_key: "has_memory_or_thinking_changes",
+    domain: "Neurology",
+    label_plain_english:
+      "Have you or a loved one noticed new changes in your memory, problem-solving, or managing appointments and bills over the past few years?",
+    helper_tooltip:
+      "Early cognitive checks help rule out treatable causes and determine whether a brain MRI or specialist evaluation is helpful.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 55 },
+    sort_order: 770,
+  },
+  {
+    question_key: "ad8_total_score",
+    domain: "Neurology",
+    label_plain_english:
+      "Out of 8 memory and daily-thinking areas (repeating questions, forgetting dates, trouble with finances or appliances), how many have changed (0–8)?",
+    helper_tooltip:
+      "Noting 2 or more areas of change recommends a gentle clinical memory evaluation with your provider.",
+    input_type: "number",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 55, depends_on: { has_memory_or_thinking_changes: true } },
+    sort_order: 775,
+  },
+
+  // SARC-F Sarcopenia & Body Composition (Bone — 1 knockout gate, age >= 60)
+  {
+    question_key: "has_muscle_weakness_or_mobility_difficulty",
+    domain: "Bone",
+    label_plain_english:
+      "Do you have noticeable difficulty lifting 10 pounds, rising from a chair without using your hands, or climbing a flight of stairs?",
+    helper_tooltip:
+      "Screens for age-related muscle loss (sarcopenia), which can be evaluated alongside bone density on a quick DEXA body-composition scan.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 60 },
+    sort_order: 780,
+  },
+  {
+    question_key: "sarc_f_total_score",
+    domain: "Bone",
+    label_plain_english:
+      "Rate your overall difficulty across strength, walking, rising from a chair, climbing stairs, and falls (0 = none, 10 = severe).",
+    helper_tooltip:
+      "A score of 4 or higher indicates a benefit from DEXA bone & muscle body-composition imaging and strength-focused care.",
+    input_type: "number",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 60, depends_on: { has_muscle_weakness_or_mobility_difficulty: true } },
+    sort_order: 785,
+  },
+
+  // =========================================================================
+  // OPT-IN SUPPLEMENTAL PACK 1: GASTROENTEROLOGY & ENDOCRINE (sort 800-860)
+  // =========================================================================
+  {
+    question_key: "crc_screening_up_to_date",
+    domain: "Gastroenterology",
+    label_plain_english:
+      "Are you up to date on colorectal cancer screening (colonoscopy within 10 years, CT colonography within 5 years, or stool test within 1–3 years)?",
+    helper_tooltip:
+      "Routine colon screening starting at age 45 prevents most colorectal cancers by finding polyps early — including non-invasive CT colonography options.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 45, max_age: 75 },
+    sort_order: 800,
+  },
+  {
+    question_key: "crc_screening_preference",
+    domain: "Gastroenterology",
+    label_plain_english: "Which colorectal screening option would you prefer to discuss with your provider?",
+    helper_tooltip:
+      "Virtual colonoscopy (CT colonography) is a quick, sedation-free imaging option covered by many preventive plans.",
+    input_type: "select",
+    options_json: [
+      { value: "ct_colonography", label: "CT Colonography (Virtual Colonoscopy — no sedation)" },
+      { value: "colonoscopy", label: "Optical Colonoscopy" },
+      { value: "stool_fit_dna", label: "At-Home Stool Test (FIT / Cologuard)" },
+      { value: "undecided", label: "Not sure — help me choose with a clinician" },
+    ],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 45, max_age: 75, depends_on: { crc_screening_up_to_date: false } },
+    sort_order: 805,
+  },
+  {
+    question_key: "has_known_pancreatic_cyst",
+    domain: "Gastroenterology",
+    label_plain_english:
+      "Have you ever been told you have a pancreatic cyst (such as an IPMN) found on an abdominal CT or MRI scan?",
+    helper_tooltip:
+      "Most pancreatic cysts are harmless, but periodic abdominal MRI/MRCP checks ensure any changes are caught early.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "HYBRID",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 35 },
+    sort_order: 810,
+  },
+  {
+    question_key: "pancreatic_cyst_size_cm",
+    domain: "Gastroenterology",
+    label_plain_english: "If known, what is the approximate size of your largest pancreatic cyst (in cm)?",
+    helper_tooltip: "Cysts 1 cm or larger follow structured MRI/MRCP surveillance guidelines.",
+    input_type: "number",
+    options_json: [],
+    data_source: "HYBRID",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 35, depends_on: { has_known_pancreatic_cyst: true } },
+    sort_order: 815,
+  },
+  {
+    question_key: "pancreatic_cyst_worrisome_features",
+    domain: "Gastroenterology",
+    label_plain_english:
+      "Did your doctor mention any pancreatic duct dilation, thickened cyst wall, mural nodule, or pancreatitis episodes?",
+    helper_tooltip:
+      "These features guide whether an expedited MRI/MRCP or gastroenterology specialist review is recommended.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "HYBRID",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 35, depends_on: { has_known_pancreatic_cyst: true } },
+    sort_order: 820,
+  },
+  {
+    question_key: "consumes_alcohol",
+    domain: "Gastroenterology",
+    label_plain_english: "Do you drink alcoholic beverages (beer, wine, or liquor) at least occasionally?",
+    helper_tooltip:
+      "A quick 3-question alcohol wellness check helps protect long-term liver and digestive health.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 18 },
+    sort_order: 825,
+  },
+  {
+    question_key: "audit_c_frequency_score",
+    domain: "Gastroenterology",
+    label_plain_english: "How often do you have a drink containing alcohol?",
+    helper_tooltip: "Part 1 of the brief 3-question AUDIT-C preventive liver wellness check.",
+    input_type: "select",
+    options_json: [
+      { value: "0", label: "Never" },
+      { value: "1", label: "Monthly or less" },
+      { value: "2", label: "2 to 4 times a month" },
+      { value: "3", label: "2 to 3 times a week" },
+      { value: "4", label: "4 or more times a week" },
+    ],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 18, depends_on: { consumes_alcohol: true } },
+    sort_order: 830,
+  },
+  {
+    question_key: "audit_c_quantity_score",
+    domain: "Gastroenterology",
+    label_plain_english: "How many standard drinks do you have on a typical day when you are drinking?",
+    helper_tooltip: "Part 2 of the AUDIT-C check (1 drink = 12 oz beer, 5 oz wine, or 1.5 oz spirits).",
+    input_type: "select",
+    options_json: [
+      { value: "0", label: "1 or 2 drinks" },
+      { value: "1", label: "3 or 4 drinks" },
+      { value: "2", label: "5 or 6 drinks" },
+      { value: "3", label: "7 to 9 drinks" },
+      { value: "4", label: "10 or more drinks" },
+    ],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 18, depends_on: { consumes_alcohol: true } },
+    sort_order: 835,
+  },
+  {
+    question_key: "audit_c_binge_score",
+    domain: "Gastroenterology",
+    label_plain_english: "How often do you have 6 or more drinks on one occasion?",
+    helper_tooltip: "Part 3 of the AUDIT-C check used to determine whether a painless liver elastography scan could be helpful.",
+    input_type: "select",
+    options_json: [
+      { value: "0", label: "Never" },
+      { value: "1", label: "Less than monthly" },
+      { value: "2", label: "Monthly" },
+      { value: "3", label: "Weekly" },
+      { value: "4", label: "Daily or almost daily" },
+    ],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 18, depends_on: { consumes_alcohol: true } },
+    sort_order: 840,
+  },
+  {
+    question_key: "has_known_thyroid_nodule",
+    domain: "Endocrine",
+    label_plain_english:
+      "Have you ever been told you have a thyroid nodule (lump) on a neck exam, ultrasound, CT, or MRI?",
+    helper_tooltip:
+      "Thyroid nodules are very common and usually benign; structured ultrasound follow-up (ACR TI-RADS) ensures only nodules that need attention are re-checked.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "HYBRID",
+    is_knockout_gate: true,
+    display_conditions: {},
+    sort_order: 845,
+  },
+  {
+    question_key: "thyroid_nodule_tirads_level",
+    domain: "Endocrine",
+    label_plain_english: "If reported on a prior ultrasound, what was the thyroid nodule category (TI-RADS)?",
+    helper_tooltip: "Select 'Not sure' if you have not had a formal TI-RADS ultrasound yet.",
+    input_type: "select",
+    options_json: [
+      { value: "TR1", label: "TR1 (Benign)" },
+      { value: "TR2", label: "TR2 (Not Suspicious)" },
+      { value: "TR3", label: "TR3 (Mildly Suspicious)" },
+      { value: "TR4", label: "TR4 (Moderately Suspicious)" },
+      { value: "TR5", label: "TR5 (Highly Suspicious)" },
+      { value: "unknown", label: "Not sure / Not yet categorized" },
+    ],
+    data_source: "HYBRID",
+    is_knockout_gate: false,
+    display_conditions: { depends_on: { has_known_thyroid_nodule: true } },
+    sort_order: 850,
+  },
+  {
+    question_key: "thyroid_nodule_size_cm",
+    domain: "Endocrine",
+    label_plain_english: "If known, what is the approximate size of your largest thyroid nodule (in cm)?",
+    helper_tooltip: "Nodule size combined with ultrasound appearance guides whether repeat ultrasound or fine-needle biopsy is recommended.",
+    input_type: "number",
+    options_json: [],
+    data_source: "HYBRID",
+    is_knockout_gate: false,
+    display_conditions: { depends_on: { has_known_thyroid_nodule: true } },
+    sort_order: 855,
+  },
+
+  // =========================================================================
+  // OPT-IN SUPPLEMENTAL PACK 2: SPINE, BACK & JOINT HEALTH (MSK, sort 870-890)
+  // =========================================================================
+  {
+    question_key: "has_back_or_neck_pain",
+    domain: "MSK",
+    label_plain_english:
+      "Are you currently experiencing persistent back pain, neck pain, or pain radiating down an arm or leg?",
+    helper_tooltip:
+      "Screens for nerve-compression warning signs and measures how much spine symptoms affect daily life to see if a spine MRI is appropriate.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: true,
+    display_conditions: {},
+    sort_order: 870,
+  },
+  {
+    question_key: "has_cauda_equina_red_flags",
+    domain: "MSK",
+    label_plain_english:
+      "EMERGENCY CHECK: With your back pain, do you have new loss of bowel or bladder control, numbness in the groin/saddle area, or sudden severe leg weakness?",
+    helper_tooltip:
+      "These symptoms require immediate emergency medical evaluation and urgent spine MRI — call 911 or go to the nearest ER if present.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { depends_on: { has_back_or_neck_pain: true } },
+    sort_order: 875,
+  },
+  {
+    question_key: "odi_disability_percent",
+    domain: "MSK",
+    label_plain_english:
+      "How much does back or neck pain limit your daily activities such as sitting, standing, walking, and sleeping (0% = none, 100% = severe)?",
+    helper_tooltip:
+      "An Oswestry Disability Index (ODI) of 40% or higher indicates severe functional impact where a spine MRI and specialist evaluation are commonly indicated.",
+    input_type: "number",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { depends_on: { has_back_or_neck_pain: true } },
+    sort_order: 880,
+  },
+
+  // =========================================================================
+  // OPT-IN SUPPLEMENTAL PACK 3: METABOLIC & KIDNEY HEALTH (sort 900-930)
+  // =========================================================================
+  {
+    question_key: "has_diabetes_or_kidney_risk_check",
+    domain: "Metabolic",
+    label_plain_english:
+      "Would you like to answer 3 quick questions to estimate your Type 2 diabetes and kidney health risk?",
+    helper_tooltip:
+      "Helps catch prediabetes, Type 2 diabetes, or early kidney stress before symptoms develop.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 30 },
+    sort_order: 900,
+  },
+  {
+    question_key: "has_family_history_diabetes",
+    domain: "Metabolic",
+    label_plain_english: "Has a parent or sibling been diagnosed with Type 2 diabetes?",
+    helper_tooltip: "Family history is a core component of the American Diabetes Association (ADA) Risk Test.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 30, depends_on: { has_diabetes_or_kidney_risk_check: true } },
+    sort_order: 905,
+  },
+  {
+    question_key: "is_physically_active_regularly",
+    domain: "Metabolic",
+    label_plain_english: "Are you physically active on most days of the week (at least 150 minutes per week)?",
+    helper_tooltip: "Regular physical activity lowers Type 2 diabetes and metabolic risk.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 30, depends_on: { has_diabetes_or_kidney_risk_check: true } },
+    sort_order: 910,
+  },
+  {
+    question_key: "has_history_gestational_diabetes",
+    domain: "Metabolic",
+    label_plain_english: "Were you ever diagnosed with gestational diabetes during a pregnancy?",
+    helper_tooltip: "History of gestational diabetes increases lifetime Type 2 diabetes risk and supports regular screening.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: {
+      sex_at_birth: "Female",
+      min_age: 18,
+      depends_on: { has_diabetes_or_kidney_risk_check: true },
+    },
+    sort_order: 915,
+  },
+  {
+    question_key: "lab_hba1c_percent",
+    domain: "Metabolic",
+    label_plain_english: "Most recent Hemoglobin A1c (%).",
+    helper_tooltip: "EHR lab input (>= 5.7% prediabetes, >= 6.5% diabetes).",
+    input_type: "lab_numeric",
+    options_json: [],
+    data_source: "EHR_LAB",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 18 },
+    sort_order: 920,
+  },
+  {
+    question_key: "lab_uacr_mg_g",
+    domain: "Metabolic",
+    label_plain_english: "Urine Albumin-to-Creatinine Ratio (uACR, mg/g).",
+    helper_tooltip: "EHR kidney biomarker (>= 30 mg/g indicates albuminuria / KDIGO CKD risk).",
+    input_type: "lab_numeric",
+    options_json: [],
+    data_source: "EHR_LAB",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 18 },
+    sort_order: 925,
+  },
+
+  // =========================================================================
+  // OPT-IN SUPPLEMENTAL PACK 4: BEHAVIORAL WELLNESS (PHQ-9 / GAD-7, sort 940-960)
+  // =========================================================================
+  {
+    question_key: "has_mood_or_anxiety_concerns",
+    domain: "Behavioral",
+    label_plain_english:
+      "Over the past 2 weeks, have you frequently felt down, hopeless, overwhelmed, nervous, or had little interest in doing things you usually enjoy?",
+    helper_tooltip:
+      "Brief preventive wellness check (PHQ-2 / GAD-2 style gate) — your answers stay strictly private and help your care team offer whole-person support.",
+    input_type: "boolean",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: true,
+    display_conditions: { min_age: 18 },
+    sort_order: 940,
+  },
+  {
+    question_key: "phq9_total_score",
+    domain: "Behavioral",
+    label_plain_english:
+      "Depression wellness score (PHQ-9 total, 0–27; 10 or higher suggests talking with your clinician about support options).",
+    helper_tooltip: "Standardized USPSTF preventive depression screening score.",
+    input_type: "number",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 18, depends_on: { has_mood_or_anxiety_concerns: true } },
+    sort_order: 945,
+  },
+  {
+    question_key: "gad7_total_score",
+    domain: "Behavioral",
+    label_plain_english:
+      "Anxiety wellness score (GAD-7 total, 0–21; 10 or higher suggests talking with your clinician about support options).",
+    helper_tooltip: "Standardized USPSTF preventive anxiety screening score.",
+    input_type: "number",
+    options_json: [],
+    data_source: "PATIENT",
+    is_knockout_gate: false,
+    display_conditions: { min_age: 18, depends_on: { has_mood_or_anxiety_concerns: true } },
+    sort_order: 950,
+  },
 ];

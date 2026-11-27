@@ -188,7 +188,7 @@ export async function seedDatabase(pool: Pool): Promise<SeedResult> {
           `,
           [
             "Factory Baseline Snapshot (Initial Seed)",
-            "Automatic baseline restore point created on initial platform seed (117 questions, 54 clinical rules, accepted payers, and platform settings).",
+            `Automatic baseline restore point created on initial platform seed (${SEED_QUESTIONS.length} questions, ${SEED_CLINICAL_RULES.length} clinical rules, accepted payers, and platform settings).`,
             JSON.stringify({
               questions: qRows.rows,
               clinical_rules: rRows.rows,

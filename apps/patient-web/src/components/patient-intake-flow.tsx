@@ -33,6 +33,7 @@ const ACUTE_EMERGENCY_KEYS = new Set([
   "has_transient_neuro_symptoms",
   "has_acute_leg_swelling_or_dyspnea",
   "has_hemoptysis",
+  "has_cauda_equina_red_flags",
 ]);
 
 interface AcceptedPayerOption {
@@ -73,9 +74,9 @@ const DEFAULT_RELEASE_CONFIG: PatientReleaseConfig = {
 const MODULE_OPTIONS = [
   {
     id: "all",
-    label: "Complete Preventive Health Check (Recommended)",
+    label: "Complete Core Preventive Check (Recommended)",
     description:
-      "Reviews all major preventive imaging pathways tailored to your age and sex — ideal if you want a full roadmap for your next doctor visit.",
+      "Reviews all core preventive imaging pathways tailored to your age and sex — fast, focused, and ideal for your next doctor visit.",
   },
   {
     id: "oncology",
@@ -87,13 +88,13 @@ const MODULE_OPTIONS = [
     id: "pulmonology",
     label: "Lung & Breathing Health",
     description:
-      "Checks whether a quick, painless Low-Dose CT (LDCT) lung screening is recommended based on your age and past or current smoking history.",
+      "Checks whether a quick, painless Low-Dose CT (LDCT) lung screening or breathing evaluation is recommended based on your age and history.",
   },
   {
     id: "cardio",
     label: "Heart & Vascular Wellness",
     description:
-      "Estimates heart health and checks whether preventive cardiac imaging such as a Coronary Calcium CT scan could uncover silent risk early.",
+      "Estimates heart, cholesterol, carotid, and circulation risk to check whether cardiac calcium CT, carotid ultrasound, or echocardiogram could help.",
   },
   {
     id: "obgyn",
@@ -109,15 +110,46 @@ const MODULE_OPTIONS = [
   },
   {
     id: "neurology",
-    label: "Headache & Neurological Safety",
+    label: "Headache, Memory & Brain Safety",
     description:
-      "Screens headache and neurological warning signs so our clinical team can prioritize timely evaluation when needed.",
+      "Screens headache warning signs and memory wellness so our clinical team can prioritize timely evaluation when needed.",
   },
   {
     id: "sleep",
-    label: "Sleep Quality & Bone Strength",
+    label: "Sleep, Bone & Muscle Strength",
     description:
-      "Evaluates sleep apnea indicators and bone density (DEXA) fracture risk to protect long-term energy, mobility, and independence.",
+      "Evaluates sleep apnea indicators, bone density (DEXA) fracture risk, and muscle strength to protect long-term mobility and independence.",
+  },
+];
+
+const SUPPLEMENTAL_MODULE_OPTIONS = [
+  {
+    id: "supp_gi_endocrine",
+    label: "Colorectal, Thyroid & Pancreatic Imaging",
+    estTime: "~1–2 min",
+    description:
+      "Checks colon screening options (including sedation-free CT colonography), thyroid nodule ultrasound follow-up, pancreatic cyst surveillance, and alcohol/liver wellness.",
+  },
+  {
+    id: "supp_spine_msk",
+    label: "Back, Neck & Spine Health",
+    estTime: "~1 min",
+    description:
+      "Screens persistent back or neck pain impact (ODI) and nerve-compression red flags to see if a spine MRI or specialist evaluation may help.",
+  },
+  {
+    id: "supp_metabolic_renal",
+    label: "Diabetes & Kidney Wellness",
+    estTime: "~1 min",
+    description:
+      "Runs the quick ADA Type 2 diabetes & kidney health check to guide early A1c labs, renal ultrasound, or metabolic liver care.",
+  },
+  {
+    id: "supp_behavioral",
+    label: "Mood, Stress & Behavioral Wellness",
+    estTime: "~1 min",
+    description:
+      "Optional, strictly private check-in for persistent low mood or anxiety (PHQ-9 / GAD-7) so your clinician can offer whole-person support.",
   },
 ];
 
@@ -245,6 +277,7 @@ export function PatientIntakeFlow() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [selectedModules, setSelectedModules] = useState<string[]>(["oncology", "cardio"]);
+  const [selectedSupplementalModules, setSelectedSupplementalModules] = useState<string[]>([]);
 
   // Server session IDs
   const [patientId, setPatientId] = useState<string | null>(null);
@@ -408,6 +441,20 @@ export function PatientIntakeFlow() {
     });
   }
 
+  function toggleSupplementalModule(suppId: string) {
+    setSelectedSupplementalModules((prev) =>
+      prev.includes(suppId) ? prev.filter((m) => m !== suppId) : [...prev, suppId],
+    );
+  }
+
+  function toggleAllSupplementalModules() {
+    if (selectedSupplementalModules.length === SUPPLEMENTAL_MODULE_OPTIONS.length) {
+      setSelectedSupplementalModules([]);
+    } else {
+      setSelectedSupplementalModules(SUPPLEMENTAL_MODULE_OPTIONS.map((m) => m.id));
+    }
+  }
+
   async function handleStartIntake(e: React.FormEvent) {
     e.preventDefault();
     if (!allConsentsChecked) {
@@ -417,7 +464,8 @@ export function PatientIntakeFlow() {
     setError(null);
     setBusy(true);
     try {
-      const modules = selectedModules.length > 0 ? selectedModules : ["all"];
+      const coreModules = selectedModules.length > 0 ? selectedModules : ["all"];
+      const modules = Array.from(new Set([...coreModules, ...selectedSupplementalModules]));
       const sessRes = await fetch("/api/patient/patients/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1031,6 +1079,92 @@ export function PatientIntakeFlow() {
                               <p className="text-xs text-[var(--muted)] leading-relaxed">
                                 {mod.description}
                               </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Optional Supplemental Screenings (Patient Opt-In to Prevent Question Bloat) */}
+                  <div
+                    id="supplemental-screenings-section"
+                    className="rounded-2xl border border-dashed border-[var(--teal)]/50 bg-slate-50/70 p-4 sm:p-5 space-y-3.5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm sm:text-base font-bold text-[var(--navy)]">
+                            Optional Additional Screenings (Your Choice)
+                          </p>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white border border-[var(--border)] text-[var(--teal-dark)]">
+                            {selectedSupplementalModules.length === 0
+                              ? "0 selected — Fast Core Check"
+                              : `${selectedSupplementalModules.length} of ${SUPPLEMENTAL_MODULE_OPTIONS.length} selected`}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--muted)] leading-relaxed max-w-3xl">
+                          To keep your checkup brief, these extra screenings are{" "}
+                          <strong className="text-[var(--navy)]">completely optional</strong>. Add
+                          any topics you&apos;d like reviewed today &mdash; smart knockout questions
+                          automatically skip follow-ups that don&apos;t apply to you.
+                        </p>
+                      </div>
+                      <button
+                        id="toggle-all-supplemental-btn"
+                        type="button"
+                        onClick={toggleAllSupplementalModules}
+                        className="text-xs font-semibold px-3.5 py-2 min-h-[36px] rounded-xl border border-[var(--teal)] bg-white text-[var(--teal-dark)] hover:bg-[var(--teal-soft)] cursor-pointer transition-colors shrink-0"
+                      >
+                        {selectedSupplementalModules.length === SUPPLEMENTAL_MODULE_OPTIONS.length
+                          ? "Clear Optional Screenings"
+                          : "Include All Optional Screenings"}
+                      </button>
+                    </div>
+
+                    <div
+                      className={`grid ${
+                        isMobilePreview
+                          ? "grid-cols-1"
+                          : "grid-cols-1 md:grid-cols-2 xl:grid-cols-4"
+                      } gap-3`}
+                    >
+                      {SUPPLEMENTAL_MODULE_OPTIONS.map((supp) => {
+                        const active = selectedSupplementalModules.includes(supp.id);
+                        return (
+                          <button
+                            key={supp.id}
+                            id={`supp-module-${supp.id}`}
+                            type="button"
+                            onClick={() => toggleSupplementalModule(supp.id)}
+                            className={`text-left rounded-xl border p-3.5 transition-all cursor-pointer space-y-2 flex flex-col justify-between ${
+                              active
+                                ? "border-[var(--teal)] bg-[var(--teal-soft)] ring-1 ring-[var(--teal)]"
+                                : "border-[var(--border)] bg-white hover:border-[var(--teal)]/60"
+                            }`}
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-sm font-bold text-[var(--navy)] leading-snug">
+                                  {supp.label}
+                                </span>
+                                <span
+                                  className={`h-5 w-5 rounded-md flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5 ${
+                                    active
+                                      ? "bg-[var(--teal)] text-white"
+                                      : "border border-slate-300 bg-white text-transparent"
+                                  }`}
+                                >
+                                  ✓
+                                </span>
+                              </div>
+                              <p className="text-xs text-[var(--muted)] leading-relaxed">
+                                {supp.description}
+                              </p>
+                            </div>
+                            <div className="pt-1 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--teal-dark)]">
+                              <Clock className="h-3.5 w-3.5" />
+                              <span>{supp.estTime} extra if selected</span>
                             </div>
                           </button>
                         );

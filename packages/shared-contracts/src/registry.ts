@@ -11,13 +11,13 @@ export interface ClinicalToolDefinition {
 }
 
 /**
- * Canonical 54-Assessment Registry matching SPEC.md Section 4:
- * - 35 Patient-Reported / Gateway-Triggered Tools
- * - 19 EHR / Lab / Clinical-Note Derived Tools
+ * Canonical 69-Assessment Registry (54 Core + 15 Supplemental Screeners):
+ * - 47 Patient-Reported / Gateway-Triggered Tools
+ * - 22 EHR / Lab / Radiology-Note Derived Tools
  */
 export const CLINICAL_TOOL_REGISTRY: readonly ClinicalToolDefinition[] = [
   // =========================================================================
-  // 35 PATIENT-REPORTED / GATEWAY-TRIGGERED TOOLS
+  // 47 PATIENT-REPORTED / GATEWAY-TRIGGERED TOOLS (35 Core + 12 Supplemental)
   // =========================================================================
 
   // Oncology & Genetics (14)
@@ -63,8 +63,22 @@ export const CLINICAL_TOOL_REGISTRY: readonly ClinicalToolDefinition[] = [
   { rule_code: "ISTH_BAT", display_name: "ISTH-BAT Bleeding Assessment Tool", specialty: "Hematology", rule_type: "PATIENT_REPORTED", acuity_level: "HIGH_RISK", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "isth_bat_score" },
   { rule_code: "WELLS_DVT_PE", display_name: "Wells DVT / Pulmonary Embolism Criteria", specialty: "Hematology", rule_type: "PATIENT_REPORTED", acuity_level: "ACUTE_RED_FLAG", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "wells_dvt_pe_score" },
 
+  // Supplemental Patient-Reported / Gateway-Triggered Screeners (12)
+  { rule_code: "USPSTF_CRC_SCREENING", display_name: "USPSTF / ACG Colorectal Cancer Screening Eligibility", specialty: "Gastroenterology", rule_type: "PATIENT_REPORTED", acuity_level: "MODERATE_RISK", category: "PATIENT_REPORTED_GATEWAY" },
+  { rule_code: "DENSE_BREAST_RADIATION_MRI", display_name: "Dense Breast & Chest-Radiation Supplemental Screening (ACR/NCCN)", specialty: "Oncology", rule_type: "HYBRID", acuity_level: "HIGH_RISK", category: "PATIENT_REPORTED_GATEWAY" },
+  { rule_code: "DUTCH_LIPID_FH", display_name: "Dutch Lipid Clinic Network (FH) & Lp(a) Cardiovascular Screener", specialty: "Cardiology", rule_type: "HYBRID", acuity_level: "HIGH_RISK", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "dutch_lipid_fh_score" },
+  { rule_code: "SVS_CAROTID_STENOSIS", display_name: "SVS Carotid Artery Stenosis Risk Screener", specialty: "Cardiology", rule_type: "HYBRID", acuity_level: "HIGH_RISK", category: "PATIENT_REPORTED_GATEWAY" },
+  { rule_code: "SPINE_ODI_CAUDA_EQUINA", display_name: "Oswestry Spine Disability (ODI) & Cauda Equina Red-Flag Screener", specialty: "MSK", rule_type: "PATIENT_REPORTED", acuity_level: "ACUTE_RED_FLAG", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "odi_score" },
+  { rule_code: "AD8_DEMENTIA_SCREEN", display_name: "AD8 Patient / Informant Cognitive Screener", specialty: "Neurology", rule_type: "PATIENT_REPORTED", acuity_level: "MODERATE_RISK", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "ad8_score" },
+  { rule_code: "COPD_CAT_MMRC", display_name: "COPD Assessment Test (CAT) / mMRC Dyspnea Scale", specialty: "Pulmonology", rule_type: "PATIENT_REPORTED", acuity_level: "MODERATE_RISK", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "cat_score" },
+  { rule_code: "FRAMINGHAM_HF_KCCQ", display_name: "Heart Failure Risk & KCCQ-12 Symptom Screener", specialty: "Cardiology", rule_type: "HYBRID", acuity_level: "HIGH_RISK", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "hf_risk_score" },
+  { rule_code: "SARC_F_SARCOPENIA", display_name: "SARC-F Sarcopenia & Body Composition Screener", specialty: "Bone", rule_type: "PATIENT_REPORTED", acuity_level: "MODERATE_RISK", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "sarc_f_score" },
+  { rule_code: "ADA_DIABETES_KDIGO_CKD", display_name: "ADA Type 2 Diabetes Risk Test & KDIGO CKD Screener", specialty: "Metabolic & Renal", rule_type: "HYBRID", acuity_level: "MODERATE_RISK", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "ada_diabetes_risk_score" },
+  { rule_code: "AUDIT_C_ALCOHOL", display_name: "AUDIT-C Validated Alcohol Risk & Liver Screener", specialty: "Gastroenterology", rule_type: "PATIENT_REPORTED", acuity_level: "MODERATE_RISK", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "audit_c_score" },
+  { rule_code: "PHQ9_GAD7_BEHAVIORAL", display_name: "PHQ-9 Depression & GAD-7 Anxiety Preventive Screener", specialty: "Behavioral Health", rule_type: "PATIENT_REPORTED", acuity_level: "MODERATE_RISK", category: "PATIENT_REPORTED_GATEWAY", score_derived_key: "behavioral_max_score" },
+
   // =========================================================================
-  // 19 EHR / LAB / CLINICAL-NOTE DERIVED TOOLS
+  // 22 EHR / LAB / CLINICAL-NOTE DERIVED TOOLS (19 Core + 3 Supplemental)
   // =========================================================================
   { rule_code: "BRCAPRO", display_name: "BRCAPRO Hereditary BRCA1/2 Carrier Probability", specialty: "Oncology", rule_type: "EHR_LAB_DEPENDENT", acuity_level: "HIGH_RISK", category: "EHR_LAB_DERIVED" },
   { rule_code: "CLAUS_MODEL", display_name: "Claus Model Familial Breast Cancer Risk", specialty: "Oncology", rule_type: "EHR_LAB_DEPENDENT", acuity_level: "HIGH_RISK", category: "EHR_LAB_DERIVED" },
@@ -85,6 +99,10 @@ export const CLINICAL_TOOL_REGISTRY: readonly ClinicalToolDefinition[] = [
   { rule_code: "APRI", display_name: "APRI AST-to-Platelet Ratio Index", specialty: "Hepatology", rule_type: "EHR_LAB_DEPENDENT", acuity_level: "HIGH_RISK", category: "EHR_LAB_DERIVED", score_derived_key: "apri_score" },
   { rule_code: "AASLD_HCC", display_name: "AASLD Hepatocellular Carcinoma Surveillance", specialty: "Hepatology", rule_type: "EHR_LAB_DEPENDENT", acuity_level: "HIGH_RISK", category: "EHR_LAB_DERIVED" },
   { rule_code: "PCPT_2_FULL_PSA", display_name: "Full PSA-Adjusted PCPT 2.0 Prostate Cancer Risk", specialty: "Urology", rule_type: "EHR_LAB_DEPENDENT", acuity_level: "HIGH_RISK", category: "EHR_LAB_DERIVED" },
+  // Supplemental EHR / Radiology-Finding Derived Tools (3)
+  { rule_code: "ACR_TIRADS_THYROID", display_name: "ACR TI-RADS Thyroid Nodule Follow-Up Stratifier", specialty: "Endocrinology", rule_type: "HYBRID", acuity_level: "HIGH_RISK", category: "EHR_LAB_DERIVED" },
+  { rule_code: "FUKUOKA_IPMN_PANCREAS", display_name: "Fukuoka / Kyoto Pancreatic Cyst (IPMN) Surveillance", specialty: "Gastroenterology", rule_type: "HYBRID", acuity_level: "HIGH_RISK", category: "EHR_LAB_DERIVED" },
+  { rule_code: "LUNG_RADS_FOLLOWUP", display_name: "Lung-RADS Pulmonary Nodule Follow-Up Tracker", specialty: "Pulmonology", rule_type: "EHR_LAB_DEPENDENT", acuity_level: "HIGH_RISK", category: "EHR_LAB_DERIVED" },
 ] as const;
 
 export const CLINICAL_TOOL_MAP = new Map<string, ClinicalToolDefinition>(

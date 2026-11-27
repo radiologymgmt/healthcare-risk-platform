@@ -17,6 +17,29 @@ import { createWorkqueueRouter } from "./workqueue-routes.js";
 
 const UuidParamSchema = z.string().uuid();
 
+const CORE_DOMAINS = [
+  "Demographics",
+  "Acute",
+  "Oncology",
+  "Pulmonology",
+  "Urology",
+  "OBGYN",
+  "Cardio",
+  "Neurology",
+  "Sleep",
+  "Bone",
+  "Hematology",
+  "Hepatology",
+] as const;
+
+const SUPPLEMENTAL_DOMAINS = [
+  "Gastroenterology",
+  "Endocrine",
+  "MSK",
+  "Metabolic",
+  "Behavioral",
+] as const;
+
 const MODULE_TO_DOMAINS: Record<string, string[]> = {
   demographics: ["Demographics"],
   acute: ["Acute"],
@@ -32,6 +55,16 @@ const MODULE_TO_DOMAINS: Record<string, string[]> = {
   msk: ["MSK"],
   hematology: ["Hematology", "Acute"],
   hepatology: ["Hepatology"],
+  gastroenterology: ["Gastroenterology"],
+  endocrine: ["Endocrine"],
+  metabolic: ["Metabolic"],
+  behavioral: ["Behavioral"],
+  // Opt-in Patient Supplemental Screening Packs
+  supp_gi_endocrine: ["Gastroenterology", "Endocrine"],
+  supp_spine_msk: ["MSK"],
+  supp_metabolic_renal: ["Metabolic"],
+  supp_behavioral: ["Behavioral"],
+  supp_all: [...SUPPLEMENTAL_DOMAINS],
 };
 
 function matchesDemographicConditions(
@@ -83,6 +116,9 @@ export function createApp(
    * GET /api/v1/questionnaire/config
    * Returns active questions, knockout rules, and plain-English tooltips
    * filtered by selected modules and optional patient demographics.
+   * Note: "all" returns all CORE preventive domains; opt-in supplemental domains
+   * (Gastroenterology, Endocrine, MSK, Metabolic, Behavioral) are included only
+   * when explicitly requested via supp_* or domain module keys so default intake stays lean.
    */
   app.get(
     "/api/v1/questionnaire/config",
@@ -106,21 +142,19 @@ export function createApp(
               .filter(Boolean)
           : ["all"];
 
-        const isAllModules = selectedModules.length === 0 || selectedModules.includes("all");
+        const isAllCore = selectedModules.length === 0 || selectedModules.includes("all");
 
-        let domainFilter: string[] | null = null;
-        if (!isAllModules) {
-          const domains = new Set<string>(["Demographics", "Acute"]);
-          for (const mod of selectedModules) {
-            const mapped = MODULE_TO_DOMAINS[mod];
-            if (mapped) {
-              for (const d of mapped) domains.add(d);
-            } else {
-              domains.add(mod);
-            }
+        const domains = new Set<string>(isAllCore ? CORE_DOMAINS : ["Demographics", "Acute"]);
+        for (const mod of selectedModules) {
+          if (mod === "all") continue;
+          const mapped = MODULE_TO_DOMAINS[mod];
+          if (mapped) {
+            for (const d of mapped) domains.add(d);
+          } else {
+            domains.add(mod);
           }
-          domainFilter = Array.from(domains);
         }
+        const domainFilter = Array.from(domains);
 
         const [questionsResult, versionResult] = await Promise.all([
           pool.query<{

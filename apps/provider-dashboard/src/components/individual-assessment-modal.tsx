@@ -208,7 +208,7 @@ export function IndividualAssessmentModal({
                 <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Search 54 clinical models..."
+                  placeholder={`Search all ${models.length || 69} clinical models...`}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full h-9 rounded-lg border border-slate-300 bg-white pl-8 pr-3 text-xs"

@@ -34,7 +34,7 @@ export function DemoHub({ urls }: DemoHubProps) {
       const res = await fetch("/api/admin/demo-reset", { method: "POST" });
       if (!res.ok) throw new Error("Failed to reset synthetic demo data");
       setStatusMsg(
-        "Cleared all synthetic patient sessions, workqueue items, and pathways. All 117 questions and 54 clinical rules remain intact.",
+        "Cleared all synthetic patient sessions, workqueue items, and pathways. All clinical questions and 69 clinical rules remain intact.",
       );
     } catch (err) {
       setStatusMsg(err instanceof Error ? err.message : "Reset failed");
@@ -50,7 +50,7 @@ export function DemoHub({ urls }: DemoHubProps) {
       href: urls.patientWeb,
       icon: HeartPulse,
       steps:
-        "Click 'Fill Synthetic Test Profile', answer smoking/acute knockout questions, run Stedi X12 271 eligibility check, and book a consult.",
+        "Click 'Fill Synthetic Test Profile', optionally add supplemental screenings, answer knockout questions, run Stedi X12 271 eligibility check, and book a consult.",
     },
     {
       title: "2. Patient Mobile Magic-Link PWA",
@@ -66,15 +66,15 @@ export function DemoHub({ urls }: DemoHubProps) {
       href: urls.providerDashboard,
       icon: Stethoscope,
       steps:
-        "Click '+ Seed Synthetic Cases' to load cases across Contact Pending, Appointment Scheduled, Exams Ordered, and Patient Completed, switch to the Visits Calendar, and dispatch FHIR/HL7 orders.",
+        "Click '+ Seed Synthetic Cases' to load cases across Contact Pending, Appointment Scheduled, Exams Ordered, and Patient Completed, run any of 69 individual assessments, and download branded PDFs.",
     },
     {
-      title: "4. Admin Configuration & PDF Engine",
-      subtitle: "Component 8 · 54-Rule JsonLogic Editor, Analytics & Branded PDFs",
+      title: "4. Admin Configuration & Governance Studio",
+      subtitle: "Component 8 · 69-Rule JsonLogic Editor, Analytics, Governance & Restore Points",
       href: urls.adminPortal,
       icon: SlidersHorizontal,
       steps:
-        "Edit thresholds in /rules with live Synthetic Dry-Run, bump version snapshots, view /analytics, and download RadManagement-branded PDF reports.",
+        "Edit thresholds in /rules with live Synthetic Dry-Run, manage users/payers/restore points in /governance, view /analytics, and download RadManagement-branded PDF reports.",
     },
   ];
 

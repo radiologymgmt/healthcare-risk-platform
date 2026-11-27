@@ -37,8 +37,8 @@ describe("@healthcare/database seed integrity & PostgreSQL migrations", () => {
     await pool.end();
   });
 
-  it("matches all 54 clinical tools from CLINICAL_TOOL_REGISTRY 1-to-1", () => {
-    expect(SEED_CLINICAL_RULES).toHaveLength(54);
+  it("matches all 69 clinical tools from CLINICAL_TOOL_REGISTRY 1-to-1", () => {
+    expect(SEED_CLINICAL_RULES).toHaveLength(69);
     const seededCodes = new Set(SEED_CLINICAL_RULES.map((r) => r.rule_code));
     const registryCodes = new Set(CLINICAL_TOOL_REGISTRY.map((t) => t.rule_code));
     expect(seededCodes).toEqual(registryCodes);
@@ -50,7 +50,7 @@ describe("@healthcare/database seed integrity & PostgreSQL migrations", () => {
     }
   });
 
-  it("ensures every answers.<question_key> referenced in all 54 JsonLogic rules exists in SEED_QUESTIONS", () => {
+  it("ensures every answers.<question_key> referenced in all 69 JsonLogic rules exists in SEED_QUESTIONS", () => {
     const questionKeys = new Set(SEED_QUESTIONS.map((q) => q.question_key));
     expect(questionKeys.size).toBe(SEED_QUESTIONS.length);
 
@@ -77,8 +77,8 @@ describe("@healthcare/database seed integrity & PostgreSQL migrations", () => {
 
     const seed1 = await seedDatabase(pool);
     const seed2 = await seedDatabase(pool);
-    expect(seed1.rulesUpserted).toBe(54);
-    expect(seed2.rulesUpserted).toBe(54);
+    expect(seed1.rulesUpserted).toBe(69);
+    expect(seed2.rulesUpserted).toBe(69);
 
     const tablesRes = await pool.query<{ table_name: string }>(
       `
@@ -106,7 +106,7 @@ describe("@healthcare/database seed integrity & PostgreSQL migrations", () => {
     }
 
     const rulesCount = await pool.query<{ count: string }>("SELECT COUNT(*) FROM clinical_rules");
-    expect(Number(rulesCount.rows[0]!.count)).toBe(54);
+    expect(Number(rulesCount.rows[0]!.count)).toBe(69);
 
     const questionsCount = await pool.query<{ count: string }>("SELECT COUNT(*) FROM questions");
     expect(Number(questionsCount.rows[0]!.count)).toBe(SEED_QUESTIONS.length);

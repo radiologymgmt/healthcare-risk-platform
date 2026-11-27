@@ -1200,4 +1200,387 @@ export const SEED_CLINICAL_RULES: readonly SeedClinicalRule[] = [
     prior_auth_rationale_template:
       "PSA-adjusted PCPT 2.0 elevated high-grade prostate cancer risk supports multiparametric prostate MRI (CPT 72197) prior to biopsy.",
   },
+
+  // =========================================================================
+  // 15 SUPPLEMENTAL CLINICAL RULES (Batch F — Expanding 54 -> 69 Models)
+  // =========================================================================
+  {
+    rule_code: "USPSTF_CRC_SCREENING",
+    display_name: "USPSTF / ACG Colorectal Cancer Screening Eligibility",
+    specialty: "Gastroenterology",
+    rule_type: "PATIENT_REPORTED",
+    acuity_level: "MODERATE_RISK",
+    logic_expression: {
+      and: [
+        { ">=": [{ var: "derived.age" }, 45] },
+        { "<=": [{ var: "derived.age" }, 75] },
+        { "==": [{ var: "answers.crc_screening_up_to_date" }, false] },
+      ],
+    },
+    recommended_intervention:
+      "Preventive Colorectal Cancer Screening — CT Colonography (Virtual Colonoscopy) or Optical Colonoscopy",
+    cpt_codes: ["74263", "45378"],
+    icd10_codes: ["Z12.11", "Z80.0"],
+    prior_auth_rationale_template:
+      "Patient aged 45–75 is due for USPSTF Grade A/B colorectal cancer screening; screening CT colonography (CPT 74263) or colonoscopy (CPT 45378) is medically indicated.",
+  },
+  {
+    rule_code: "DENSE_BREAST_RADIATION_MRI",
+    display_name: "Dense Breast & Chest-Radiation Supplemental Screening (ACR/NCCN)",
+    specialty: "Oncology",
+    rule_type: "HYBRID",
+    acuity_level: "HIGH_RISK",
+    logic_expression: {
+      and: [
+        { "==": [{ var: "patient.sex_at_birth" }, "Female"] },
+        { ">=": [{ var: "derived.age" }, 25] },
+        {
+          or: [
+            { "==": [{ var: "answers.has_prior_chest_radiation_young" }, true] },
+            {
+              and: [
+                { ">=": [{ var: "derived.age" }, 40] },
+                { in: [{ var: "answers.breast_density_birads" }, ["C", "D"]] },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "Supplemental Bilateral Breast MRI (Abbreviated or Full Protocol) / Whole-Breast Screening Ultrasound",
+    cpt_codes: ["77049", "76641"],
+    icd10_codes: ["R92.30", "Z92.3"],
+    prior_auth_rationale_template:
+      "Prior therapeutic chest radiation (ages 10–30) or heterogeneously/extremely dense breast parenchyma (BI-RADS C/D) meets ACR/NCCN criteria for supplemental breast MRI (CPT 77049) or screening ultrasound (CPT 76641).",
+  },
+  {
+    rule_code: "ACR_TIRADS_THYROID",
+    display_name: "ACR TI-RADS Thyroid Nodule Follow-Up Stratifier",
+    specialty: "Endocrinology",
+    rule_type: "HYBRID",
+    acuity_level: "HIGH_RISK",
+    logic_expression: {
+      and: [
+        { "==": [{ var: "answers.has_known_thyroid_nodule" }, true] },
+        {
+          or: [
+            { "==": [{ var: "answers.thyroid_nodule_tirads_level" }, "unknown"] },
+            {
+              and: [
+                { "==": [{ var: "answers.thyroid_nodule_tirads_level" }, "TR3"] },
+                { ">=": [{ var: "answers.thyroid_nodule_size_cm" }, 1.5] },
+              ],
+            },
+            {
+              and: [
+                { "==": [{ var: "answers.thyroid_nodule_tirads_level" }, "TR4"] },
+                { ">=": [{ var: "answers.thyroid_nodule_size_cm" }, 1.0] },
+              ],
+            },
+            {
+              and: [
+                { "==": [{ var: "answers.thyroid_nodule_tirads_level" }, "TR5"] },
+                { ">=": [{ var: "answers.thyroid_nodule_size_cm" }, 0.5] },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "Dedicated Neck / Thyroid Ultrasound with ACR TI-RADS Scoring & FNA Biopsy Evaluation if Threshold Met",
+    cpt_codes: ["76536", "10005"],
+    icd10_codes: ["E04.1", "E04.2"],
+    prior_auth_rationale_template:
+      "Known thyroid nodule meets ACR TI-RADS size/risk criteria (TR3 >= 1.5 cm, TR4 >= 1.0 cm, TR5 >= 0.5 cm, or uncategorized) warranting dedicated thyroid ultrasound (CPT 76536) and FNA consideration.",
+  },
+  {
+    rule_code: "FUKUOKA_IPMN_PANCREAS",
+    display_name: "Fukuoka / Kyoto Pancreatic Cyst (IPMN) Surveillance",
+    specialty: "Gastroenterology",
+    rule_type: "HYBRID",
+    acuity_level: "HIGH_RISK",
+    logic_expression: {
+      and: [
+        { "==": [{ var: "answers.has_known_pancreatic_cyst" }, true] },
+        {
+          or: [
+            { ">=": [{ var: "answers.pancreatic_cyst_size_cm" }, 1.0] },
+            { "==": [{ var: "answers.pancreatic_cyst_worrisome_features" }, true] },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "Contrast-Enhanced Abdominal MRI with MRCP Surveillance & Gastroenterology / Pancreaticobiliary Review",
+    cpt_codes: ["74183", "74181"],
+    icd10_codes: ["K86.2", "D13.6"],
+    prior_auth_rationale_template:
+      "Pancreatic cyst >= 1.0 cm or with Fukuoka/Kyoto worrisome features meets international consensus guidelines for MRI Abdomen with MRCP (CPT 74183).",
+  },
+  {
+    rule_code: "DUTCH_LIPID_FH",
+    display_name: "Dutch Lipid Clinic Network (FH) & Lp(a) Cardiovascular Screener",
+    specialty: "Cardiology",
+    rule_type: "HYBRID",
+    acuity_level: "HIGH_RISK",
+    logic_expression: {
+      or: [
+        { ">=": [{ var: "derived.dutch_lipid_fh_score" }, 6] },
+        { ">=": [{ var: "answers.lab_ldl_mg_dl" }, 190] },
+        { ">=": [{ var: "answers.lab_lpa_nmol_l" }, 125] },
+      ],
+    },
+    recommended_intervention:
+      "Coronary Artery Calcium (CAC) or Coronary CT Angiography (CCTA), Lipidology Referral & FH Genetic Evaluation",
+    cpt_codes: ["75574", "75571"],
+    icd10_codes: ["E78.01", "E78.41"],
+    prior_auth_rationale_template:
+      "Probable/definite Familial Hypercholesterolemia (Dutch Lipid score >= 6 or LDL >= 190 mg/dL) or elevated Lp(a) >= 125 nmol/L supports subclinical atherosclerosis imaging (CPT 75571 / 75574) and preventive cardiology.",
+  },
+  {
+    rule_code: "SVS_CAROTID_STENOSIS",
+    display_name: "SVS Carotid Artery Stenosis Risk Screener",
+    specialty: "Cardiology",
+    rule_type: "HYBRID",
+    acuity_level: "HIGH_RISK",
+    logic_expression: {
+      and: [
+        { ">=": [{ var: "derived.age" }, 50] },
+        {
+          or: [
+            { "==": [{ var: "answers.has_carotid_bruit_or_prior_carotid_stenosis" }, true] },
+            {
+              and: [
+                { "==": [{ var: "answers.has_prior_stroke_or_tia" }, true] },
+                { "==": [{ var: "answers.has_vascular_disease" }, true] },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "Bilateral Carotid Duplex Ultrasound & Vascular Risk Stratification",
+    cpt_codes: ["93880"],
+    icd10_codes: ["I65.29", "R09.89"],
+    prior_auth_rationale_template:
+      "Presence of carotid bruit, known carotid stenosis, or prior stroke/TIA with atherosclerotic vascular disease meets SVS guidelines for bilateral carotid duplex ultrasound (CPT 93880).",
+  },
+  {
+    rule_code: "SPINE_ODI_CAUDA_EQUINA",
+    display_name: "Oswestry Spine Disability (ODI) & Cauda Equina Red-Flag Screener",
+    specialty: "MSK",
+    rule_type: "PATIENT_REPORTED",
+    acuity_level: "ACUTE_RED_FLAG",
+    logic_expression: {
+      and: [
+        { "==": [{ var: "answers.has_back_or_neck_pain" }, true] },
+        {
+          or: [
+            { "==": [{ var: "answers.has_cauda_equina_red_flags" }, true] },
+            { ">=": [{ var: "derived.odi_score" }, 40] },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "HIGH PRIORITY — Urgent Lumbar / Cervical Spine MRI (Immediate Emergency Evaluation if Cauda Equina Symptoms Present)",
+    cpt_codes: ["72148", "72141"],
+    icd10_codes: ["G83.4", "M54.50"],
+    prior_auth_rationale_template:
+      "Spine Cauda Equina red-flag symptoms (bowel/bladder dysfunction, saddle anesthesia, progressive leg weakness) or severe Oswestry Disability Index (ODI >= 40%) meets ACR Appropriateness Criteria for spine MRI (CPT 72148 / 72141).",
+  },
+  {
+    rule_code: "AD8_DEMENTIA_SCREEN",
+    display_name: "AD8 Patient / Informant Cognitive Screener",
+    specialty: "Neurology",
+    rule_type: "PATIENT_REPORTED",
+    acuity_level: "MODERATE_RISK",
+    logic_expression: {
+      and: [
+        { ">=": [{ var: "derived.age" }, 55] },
+        { "==": [{ var: "answers.has_memory_or_thinking_changes" }, true] },
+        { ">=": [{ var: "derived.ad8_score" }, 2] },
+      ],
+    },
+    recommended_intervention:
+      "Structural Brain MRI (Without Contrast), Reversible Dementia Labs & Formal Cognitive Evaluation (MoCA)",
+    cpt_codes: ["70551", "96132"],
+    icd10_codes: ["R41.3", "G31.84"],
+    prior_auth_rationale_template:
+      "Positive AD8 cognitive screen (score >= 2) in adults >= 55 warrants structural Brain MRI without contrast (CPT 70551) to exclude structural/vascular etiologies and formal cognitive workup.",
+  },
+  {
+    rule_code: "LUNG_RADS_FOLLOWUP",
+    display_name: "Lung-RADS Pulmonary Nodule Follow-Up Tracker",
+    specialty: "Pulmonology",
+    rule_type: "EHR_LAB_DEPENDENT",
+    acuity_level: "HIGH_RISK",
+    logic_expression: {
+      or: [
+        { in: [{ var: "answers.lung_rads_category" }, ["3", "4A", "4B", "4X"]] },
+        { ">=": [{ var: "answers.prior_ldct_nodule_size_mm" }, 6] },
+      ],
+    },
+    recommended_intervention:
+      "ACR Lung-RADS Protocol Follow-Up Chest CT (3–6 Month LDCT / Diagnostic Chest CT) or PET-CT for 4A/4B/4X",
+    cpt_codes: ["71271", "71250", "78815"],
+    icd10_codes: ["R91.1", "R91.8"],
+    prior_auth_rationale_template:
+      "ACR Lung-RADS Category 3/4A/4B/4X or pulmonary nodule >= 6 mm requires guideline-concordant interval follow-up chest CT (CPT 71271 / 71250) or PET-CT (CPT 78815).",
+  },
+  {
+    rule_code: "COPD_CAT_MMRC",
+    display_name: "COPD Assessment Test (CAT) / mMRC Dyspnea Scale",
+    specialty: "Pulmonology",
+    rule_type: "PATIENT_REPORTED",
+    acuity_level: "MODERATE_RISK",
+    logic_expression: {
+      and: [
+        { "==": [{ var: "answers.copd_history" }, true] },
+        {
+          or: [
+            { ">=": [{ var: "derived.cat_score" }, 10] },
+            { ">=": [{ var: "derived.mmrc_grade" }, 2] },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "High-Resolution Chest CT (Emphysema/Bronchiectasis Assessment), Spirometry (PFTs) & Pulmonology Optimization",
+    cpt_codes: ["71250", "94010"],
+    icd10_codes: ["J44.9", "R06.02"],
+    prior_auth_rationale_template:
+      "Symptomatic COPD meeting GOLD Group B/E criteria (CAT >= 10 or mMRC >= 2) supports chest CT characterization (CPT 71250) and spirometry (CPT 94010).",
+  },
+  {
+    rule_code: "FRAMINGHAM_HF_KCCQ",
+    display_name: "Heart Failure Risk & KCCQ-12 Symptom Screener",
+    specialty: "Cardiology",
+    rule_type: "HYBRID",
+    acuity_level: "HIGH_RISK",
+    logic_expression: {
+      or: [
+        { ">=": [{ var: "answers.lab_nt_probnp_pg_ml" }, 125] },
+        {
+          and: [
+            { "==": [{ var: "answers.has_hf_symptoms_shortness_breath_swelling" }, true] },
+            {
+              or: [
+                { "<=": [{ var: "derived.kccq12_score" }, 75] },
+                { ">=": [{ var: "derived.hf_risk_score" }, 2] },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "Transthoracic Echocardiogram (TTE), NT-proBNP Confirmation & Cardiology Evaluation (Cardiac MRI if Indicated)",
+    cpt_codes: ["93306", "75561"],
+    icd10_codes: ["I50.9", "R06.02"],
+    prior_auth_rationale_template:
+      "Elevated NT-proBNP (>= 125 pg/mL) or heart failure symptoms with reduced KCCQ-12 (<= 75) meets ACC/AHA guidelines for transthoracic echocardiography (CPT 93306).",
+  },
+  {
+    rule_code: "SARC_F_SARCOPENIA",
+    display_name: "SARC-F Sarcopenia & Body Composition Screener",
+    specialty: "Bone",
+    rule_type: "PATIENT_REPORTED",
+    acuity_level: "MODERATE_RISK",
+    logic_expression: {
+      and: [
+        { ">=": [{ var: "derived.age" }, 60] },
+        { "==": [{ var: "answers.has_muscle_weakness_or_mobility_difficulty" }, true] },
+        { ">=": [{ var: "derived.sarc_f_score" }, 4] },
+      ],
+    },
+    recommended_intervention:
+      "Dual-Energy X-Ray Absorptiometry (DEXA) Bone Density + Whole-Body Lean Mass Composition & Physical Therapy",
+    cpt_codes: ["77080", "77089"],
+    icd10_codes: ["M62.84", "R26.89"],
+    prior_auth_rationale_template:
+      "Positive SARC-F screen (score >= 4 in adults >= 60) indicates high risk for sarcopenia and osteosarcopenia, supporting DEXA bone & body composition evaluation (CPT 77080 / 77089).",
+  },
+  {
+    rule_code: "ADA_DIABETES_KDIGO_CKD",
+    display_name: "ADA Type 2 Diabetes Risk Test & KDIGO CKD Screener",
+    specialty: "Metabolic & Renal",
+    rule_type: "HYBRID",
+    acuity_level: "MODERATE_RISK",
+    logic_expression: {
+      or: [
+        { ">=": [{ var: "derived.ada_diabetes_risk_score" }, 5] },
+        { ">=": [{ var: "answers.lab_hba1c_percent" }, 5.7] },
+        { ">=": [{ var: "answers.lab_uacr_mg_g" }, 30] },
+        {
+          and: [
+            { ">": [{ var: "answers.lab_egfr_ml_min" }, 0] },
+            { "<": [{ var: "answers.lab_egfr_ml_min" }, 60] },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "Hemoglobin A1c & Urine uACR Metabolic Panel + Renal Ultrasound / Liver FibroScan if CKD or Metabolic Dysfunction Present",
+    cpt_codes: ["76770", "83036"],
+    icd10_codes: ["E11.9", "N18.9", "R73.03"],
+    prior_auth_rationale_template:
+      "Elevated ADA Type 2 Diabetes Risk Test (>= 5), HbA1c >= 5.7%, uACR >= 30 mg/g, or eGFR < 60 meets ADA/KDIGO criteria for metabolic-renal workup and renal ultrasound (CPT 76770) when indicated.",
+  },
+  {
+    rule_code: "AUDIT_C_ALCOHOL",
+    display_name: "AUDIT-C Validated Alcohol Risk & Liver Screener",
+    specialty: "Gastroenterology",
+    rule_type: "PATIENT_REPORTED",
+    acuity_level: "MODERATE_RISK",
+    logic_expression: {
+      or: [
+        {
+          and: [
+            { "==": [{ var: "patient.sex_at_birth" }, "Male"] },
+            { ">=": [{ var: "derived.audit_c_score" }, 4] },
+          ],
+        },
+        {
+          and: [
+            { "!=": [{ var: "patient.sex_at_birth" }, "Male"] },
+            { ">=": [{ var: "derived.audit_c_score" }, 3] },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "USPSTF Brief Alcohol Wellness Counseling, Hepatic Function Panel & Non-Invasive Liver Elastography (FibroScan)",
+    cpt_codes: ["91200", "G0442"],
+    icd10_codes: ["F10.10", "K76.0"],
+    prior_auth_rationale_template:
+      "Positive AUDIT-C screen (>= 4 men, >= 3 women) meets USPSTF Grade B criteria for brief behavioral counseling (G0442) and non-invasive hepatic fibrosis screening (CPT 91200).",
+  },
+  {
+    rule_code: "PHQ9_GAD7_BEHAVIORAL",
+    display_name: "PHQ-9 Depression & GAD-7 Anxiety Preventive Screener",
+    specialty: "Behavioral Health",
+    rule_type: "PATIENT_REPORTED",
+    acuity_level: "MODERATE_RISK",
+    logic_expression: {
+      and: [
+        { "==": [{ var: "answers.has_mood_or_anxiety_concerns" }, true] },
+        {
+          or: [
+            { ">=": [{ var: "derived.phq9_score" }, 10] },
+            { ">=": [{ var: "derived.gad7_score" }, 10] },
+          ],
+        },
+      ],
+    },
+    recommended_intervention:
+      "Primary Care / Behavioral Health Follow-Up & Standardized Emotional-Behavioral Assessment",
+    cpt_codes: ["96127", "99214"],
+    icd10_codes: ["Z13.31", "Z13.32"],
+    prior_auth_rationale_template:
+      "Moderate-to-severe PHQ-9 (>= 10) or GAD-7 (>= 10) meets USPSTF Grade B preventive behavioral screening guidelines for structured clinician follow-up (CPT 96127).",
+  },
 ];

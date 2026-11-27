@@ -50,6 +50,10 @@ const DOMAIN_OPTIONS = [
   "MSK",
   "Hematology",
   "Hepatology",
+  "Gastroenterology",
+  "Endocrine",
+  "Metabolic",
+  "Behavioral",
 ];
 
 const INPUT_TYPES: QuestionInputType[] = [
