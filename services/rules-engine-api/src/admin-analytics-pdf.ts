@@ -162,9 +162,21 @@ export function registerAdminAnalyticsAndPdfRoutes(
   pool: Pool,
   logger: HipaaLogger,
 ): void {
-  router.get("/analytics", async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.get("/analytics", async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const analytics = await collectExecutiveAnalytics(pool);
+      await writeAuditLog(pool, {
+        actor_id: req.actor?.actor_id ?? "unknown-admin",
+        actor_role: req.actor?.actor_role ?? "ADMIN",
+        action: "VIEW_ANALYTICS",
+        resource_type: "analytics_dashboard",
+        resource_id: null,
+        ip_address: extractIp(req),
+        metadata: {
+          total_sessions: analytics.kpis.total_sessions,
+          total_triggered_pathways: analytics.kpis.total_triggered_pathways,
+        },
+      });
       res.json(analytics);
     } catch (err) {
       next(err);

@@ -85,7 +85,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: { depends_on: { smoking_status: ["current", "former"] } },
+    display_conditions: { min_age: 50, depends_on: { smoking_status: ["current", "former"] } },
     sort_order: 45,
   },
   {
@@ -97,7 +97,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "PATIENT",
     is_knockout_gate: false,
-    display_conditions: { depends_on: { smoking_status: "former" } },
+    display_conditions: { min_age: 50, depends_on: { smoking_status: "former" } },
     sort_order: 50,
   },
   {
@@ -121,7 +121,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 45 },
     sort_order: 70,
   },
 
@@ -578,7 +578,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     ],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: { sex_at_birth: "Female" },
+    display_conditions: { sex_at_birth: "Female", min_age: 40 },
     sort_order: 256,
   },
   {
@@ -710,7 +710,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 298,
   },
 
@@ -726,7 +726,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "PATIENT",
     is_knockout_gate: false,
-    display_conditions: { sex_at_birth: "Male" },
+    display_conditions: { sex_at_birth: "Male", min_age: 40 },
     sort_order: 300,
   },
   {
@@ -738,7 +738,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "PATIENT",
     is_knockout_gate: true,
-    display_conditions: { sex_at_birth: "Male" },
+    display_conditions: { sex_at_birth: "Male", min_age: 40 },
     sort_order: 305,
   },
   {
@@ -750,7 +750,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "PATIENT",
     is_knockout_gate: false,
-    display_conditions: { sex_at_birth: "Male", depends_on: { has_urinary_symptoms: true } },
+    display_conditions: { sex_at_birth: "Male", min_age: 40, depends_on: { has_urinary_symptoms: true } },
     sort_order: 310,
   },
   {
@@ -762,7 +762,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "PATIENT",
     is_knockout_gate: false,
-    display_conditions: { sex_at_birth: "Male" },
+    display_conditions: { sex_at_birth: "Male", min_age: 40 },
     sort_order: 315,
   },
   {
@@ -774,7 +774,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: { sex_at_birth: "Male" },
+    display_conditions: { sex_at_birth: "Male", min_age: 40 },
     sort_order: 320,
   },
   {
@@ -786,7 +786,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: { sex_at_birth: "Male" },
+    display_conditions: { sex_at_birth: "Male", min_age: 40 },
     sort_order: 325,
   },
   {
@@ -798,7 +798,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: { sex_at_birth: "Male" },
+    display_conditions: { sex_at_birth: "Male", min_age: 40 },
     sort_order: 330,
   },
   {
@@ -810,7 +810,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: { sex_at_birth: "Male" },
+    display_conditions: { sex_at_birth: "Male", min_age: 40 },
     sort_order: 335,
   },
   {
@@ -894,7 +894,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: { sex_at_birth: "Female" },
+    display_conditions: { sex_at_birth: "Female", min_age: 40 },
     sort_order: 370,
   },
   {
@@ -958,7 +958,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 405,
   },
   {
@@ -982,7 +982,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: true,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 415,
   },
   {
@@ -994,7 +994,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 420,
   },
   {
@@ -1006,7 +1006,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 425,
   },
   {
@@ -1018,7 +1018,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 430,
   },
   {
@@ -1054,7 +1054,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "PATIENT",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 445,
   },
   {
@@ -1066,7 +1066,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "PATIENT",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 55 },
     sort_order: 450,
   },
   {
@@ -1078,7 +1078,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 455,
   },
   {
@@ -1090,7 +1090,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 460,
   },
   {
@@ -1102,7 +1102,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 465,
   },
   {
@@ -1114,7 +1114,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 470,
   },
   {
@@ -1126,7 +1126,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 475,
   },
   {
@@ -1138,7 +1138,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 480,
   },
   {
@@ -1150,7 +1150,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 40 },
     sort_order: 485,
   },
   {
@@ -1214,7 +1214,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 50 },
     sort_order: 510,
   },
   {
@@ -1226,7 +1226,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 50 },
     sort_order: 515,
   },
   {
@@ -1310,7 +1310,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 45 },
     sort_order: 550,
   },
   {
@@ -1322,7 +1322,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "PATIENT",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 45 },
     sort_order: 555,
   },
   {
@@ -1334,7 +1334,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 45 },
     sort_order: 560,
   },
   {
@@ -1346,7 +1346,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 45 },
     sort_order: 565,
   },
   {
@@ -1358,7 +1358,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "HYBRID",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 45 },
     sort_order: 570,
   },
   {
@@ -1370,7 +1370,7 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
     options_json: [],
     data_source: "EHR_LAB",
     is_knockout_gate: false,
-    display_conditions: {},
+    display_conditions: { min_age: 45 },
     sort_order: 575,
   },
   {

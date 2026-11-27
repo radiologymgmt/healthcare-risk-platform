@@ -52,7 +52,57 @@ export function MagicLinkReview({ token }: { token: string }) {
   const [items, setItems] = useState<PrepopulatedItem[]>([]);
   const [decisions, setDecisions] = useState<Record<string, CardDecision>>({});
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<string>("");
+  const [editFeet, setEditFeet] = useState<string>("5");
+  const [editInches, setEditInches] = useState<string>("6");
   const [completion, setCompletion] = useState<CompletionSummary | null>(null);
+
+  function openEditor(item: PrepopulatedItem, currentValue: unknown) {
+    if (editingKey === item.question_key) {
+      setEditingKey(null);
+      return;
+    }
+    setEditingKey(item.question_key);
+    if (item.question_key === "height_cm") {
+      const cm = typeof currentValue === "number" && currentValue > 0 ? currentValue : 167.6;
+      const totalIn = Math.round(cm / 2.54);
+      setEditFeet(String(Math.floor(totalIn / 12)));
+      setEditInches(String(totalIn % 12));
+    } else if (item.question_key === "weight_kg") {
+      const kg = typeof currentValue === "number" && currentValue > 0 ? currentValue : 72.6;
+      setEditDraft(String(Math.round(kg / 0.45359237)));
+    } else {
+      setEditDraft(currentValue === null || currentValue === undefined ? "" : String(currentValue));
+    }
+  }
+
+  function saveEditor(item: PrepopulatedItem) {
+    let nextVal: unknown = editDraft;
+    if (item.question_key === "height_cm") {
+      const ft = Number(editFeet) || 0;
+      const inch = Number(editInches) || 0;
+      nextVal = Math.round((ft * 12 + inch) * 2.54 * 10) / 10;
+    } else if (item.question_key === "weight_kg") {
+      const lbs = Number(editDraft);
+      if (Number.isNaN(lbs) || lbs <= 0) return;
+      nextVal = Math.round(lbs * 0.45359237 * 10) / 10;
+    } else if (item.input_type === "number") {
+      if (editDraft.trim() === "") return;
+      const num = Number(editDraft);
+      if (Number.isNaN(num)) return;
+      nextVal = num;
+    }
+
+    const sameAsOriginal = JSON.stringify(nextVal) === JSON.stringify(item.answer_value);
+    setDecisions((prev) => ({
+      ...prev,
+      [item.question_key]: {
+        value: nextVal,
+        status: sameAsOriginal ? "CONFIRMED" : "EDITED",
+      },
+    }));
+    setEditingKey(null);
+  }
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -114,10 +164,12 @@ export function MagicLinkReview({ token }: { token: string }) {
     try {
       const confirmations = items.map((item) => {
         const d = decisions[item.question_key];
+        const finalValue = d ? d.value : item.answer_value;
+        const matchesOriginalAi = JSON.stringify(finalValue) === JSON.stringify(item.answer_value);
         return {
           question_key: item.question_key,
-          answer_value: d ? d.value : item.answer_value,
-          confirmed_as_parsed: d?.status !== "EDITED",
+          answer_value: finalValue,
+          confirmed_as_parsed: matchesOriginalAi && d?.status !== "EDITED",
         };
       });
 
@@ -243,6 +295,7 @@ export function MagicLinkReview({ token }: { token: string }) {
                 status: "PENDING",
               };
               const isEditing = editingKey === item.question_key;
+              const isEdited = decision.status === "EDITED";
               const confPct =
                 item.confidence_score !== null ? Math.round(item.confidence_score * 100) : null;
 
@@ -252,7 +305,7 @@ export function MagicLinkReview({ token }: { token: string }) {
                   className={`rounded-2xl border bg-white p-4 shadow-xs space-y-3 transition-colors ${
                     decision.status === "CONFIRMED"
                       ? "border-teal-300 bg-teal-50/20"
-                      : decision.status === "EDITED"
+                      : isEdited
                         ? "border-sky-300 bg-sky-50/20"
                         : "border-[var(--border)]"
                   }`}
@@ -261,12 +314,16 @@ export function MagicLinkReview({ token }: { token: string }) {
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-teal-800 bg-[var(--teal-soft)] px-2 py-0.5 rounded">
                       {item.domain}
                     </span>
-                    {confPct !== null && (
+                    {isEdited ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
+                        Edited by you
+                      </span>
+                    ) : confPct !== null ? (
                       <span className="inline-flex items-center gap-1 text-[11px] text-slate-600 font-mono">
                         <Sparkles className="h-3 w-3 text-teal-700" />
                         {confPct}% AI match
                       </span>
-                    )}
+                    ) : null}
                   </div>
 
                   <p className="text-sm font-medium text-slate-900 leading-snug">
@@ -281,14 +338,36 @@ export function MagicLinkReview({ token }: { token: string }) {
                   )}
 
                   {!isEditing ? (
-                    <div className="rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 flex items-center justify-between">
-                      <span className="text-xs text-slate-500">Pre-filled answer</span>
-                      <span className="text-sm font-semibold text-slate-900">
-                        {formatDisplayValue(item, decision.value)}
-                      </span>
+                    <div
+                      className={`rounded-xl border px-3.5 py-2.5 space-y-1 ${
+                        isEdited
+                          ? "bg-sky-50/70 border-sky-200"
+                          : "bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-slate-600">
+                          {isEdited
+                            ? "Your updated answer"
+                            : decision.status === "CONFIRMED"
+                              ? "Confirmed from record"
+                              : "Pre-filled from record"}
+                        </span>
+                        <span className="text-sm font-semibold text-slate-900">
+                          {formatDisplayValue(item, decision.value)}
+                        </span>
+                      </div>
+                      {isEdited && (
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 pt-0.5 border-t border-sky-200/70">
+                          <span>Original AI pre-fill:</span>
+                          <span className="line-through">
+                            {formatDisplayValue(item, item.answer_value)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
+                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2.5">
                       {item.input_type === "boolean" && (
                         <div className="grid grid-cols-2 gap-2">
                           {[true, false].map((b) => (
@@ -296,13 +375,17 @@ export function MagicLinkReview({ token }: { token: string }) {
                               key={String(b)}
                               type="button"
                               onClick={() => {
+                                const same = JSON.stringify(b) === JSON.stringify(item.answer_value);
                                 setDecisions((prev) => ({
                                   ...prev,
-                                  [item.question_key]: { value: b, status: "EDITED" },
+                                  [item.question_key]: {
+                                    value: b,
+                                    status: same ? "CONFIRMED" : "EDITED",
+                                  },
                                 }));
                                 setEditingKey(null);
                               }}
-                              className="h-10 rounded-lg border border-slate-300 bg-white text-sm font-medium cursor-pointer"
+                              className="h-11 rounded-lg border border-slate-300 bg-white text-sm font-medium cursor-pointer hover:border-[var(--teal)]"
                             >
                               {b ? "Yes" : "No"}
                             </button>
@@ -317,13 +400,18 @@ export function MagicLinkReview({ token }: { token: string }) {
                               key={String(opt.value)}
                               type="button"
                               onClick={() => {
+                                const same =
+                                  JSON.stringify(opt.value) === JSON.stringify(item.answer_value);
                                 setDecisions((prev) => ({
                                   ...prev,
-                                  [item.question_key]: { value: opt.value, status: "EDITED" },
+                                  [item.question_key]: {
+                                    value: opt.value,
+                                    status: same ? "CONFIRMED" : "EDITED",
+                                  },
                                 }));
                                 setEditingKey(null);
                               }}
-                              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-left text-sm cursor-pointer"
+                              className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm cursor-pointer hover:border-[var(--teal)]"
                             >
                               {opt.label}
                             </button>
@@ -331,31 +419,100 @@ export function MagicLinkReview({ token }: { token: string }) {
                         </div>
                       )}
 
-                      {item.input_type !== "boolean" && item.input_type !== "select" && (
-                        <div className="flex gap-2">
-                          <input
-                            type={item.input_type === "number" ? "number" : "text"}
-                            defaultValue={String(decision.value ?? "")}
-                            onBlur={(e) => {
-                              const raw = e.target.value;
-                              const nextVal =
-                                item.input_type === "number" && raw !== "" ? Number(raw) : raw;
-                              setDecisions((prev) => ({
-                                ...prev,
-                                [item.question_key]: { value: nextVal, status: "EDITED" },
-                              }));
-                            }}
-                            className="flex-1 h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm"
-                          />
+                      {item.question_key === "height_cm" && (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="text-[11px] font-medium text-slate-600 space-y-1">
+                              <span>Feet</span>
+                              <select
+                                aria-label="Height feet"
+                                value={editFeet}
+                                onChange={(e) => setEditFeet(e.target.value)}
+                                className="w-full h-11 rounded-lg border border-slate-300 bg-white px-3 text-base"
+                              >
+                                {[3, 4, 5, 6, 7].map((ft) => (
+                                  <option key={ft} value={ft}>
+                                    {ft} ft
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="text-[11px] font-medium text-slate-600 space-y-1">
+                              <span>Inches</span>
+                              <select
+                                aria-label="Height inches"
+                                value={editInches}
+                                onChange={(e) => setEditInches(e.target.value)}
+                                className="w-full h-11 rounded-lg border border-slate-300 bg-white px-3 text-base"
+                              >
+                                {Array.from({ length: 12 }, (_, idx) => (
+                                  <option key={idx} value={idx}>
+                                    {idx} in
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => setEditingKey(null)}
-                            className="px-3 h-10 rounded-lg bg-[var(--teal)] text-white text-xs font-medium cursor-pointer"
+                            onClick={() => saveEditor(item)}
+                            className="w-full h-11 rounded-lg bg-[var(--navy)] text-white text-xs font-semibold cursor-pointer"
                           >
-                            Done
+                            Save Height ({editFeet}&apos; {editInches}&quot;)
                           </button>
                         </div>
                       )}
+
+                      {item.question_key === "weight_kg" && (
+                        <div className="flex gap-2 items-end">
+                          <label className="flex-1 text-[11px] font-medium text-slate-600 space-y-1">
+                            <span>Weight (US pounds, lbs)</span>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min={40}
+                                max={800}
+                                value={editDraft}
+                                onChange={(e) => setEditDraft(e.target.value)}
+                                className="w-full h-11 rounded-lg border border-slate-300 bg-white px-3 pr-10 text-base"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500">
+                                lbs
+                              </span>
+                            </div>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => saveEditor(item)}
+                            className="px-4 h-11 rounded-lg bg-[var(--navy)] text-white text-xs font-semibold cursor-pointer"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      )}
+
+                      {item.input_type !== "boolean" &&
+                        item.input_type !== "select" &&
+                        item.question_key !== "height_cm" &&
+                        item.question_key !== "weight_kg" && (
+                          <div className="flex gap-2">
+                            <input
+                              type={item.input_type === "number" ? "number" : "text"}
+                              inputMode={item.input_type === "number" ? "decimal" : "text"}
+                              value={editDraft}
+                              onChange={(e) => setEditDraft(e.target.value)}
+                              className="flex-1 h-11 rounded-lg border border-slate-300 bg-white px-3 text-base"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => saveEditor(item)}
+                              className="px-4 h-11 rounded-lg bg-[var(--navy)] text-white text-xs font-semibold cursor-pointer"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        )}
                     </div>
                   )}
 
@@ -367,33 +524,59 @@ export function MagicLinkReview({ token }: { token: string }) {
                   )}
 
                   <div className="grid grid-cols-2 gap-2 pt-1">
+                    {isEdited ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDecisions((prev) => ({
+                            ...prev,
+                            [item.question_key]: {
+                              value: item.answer_value,
+                              status: "CONFIRMED",
+                            },
+                          }));
+                          setEditingKey(null);
+                        }}
+                        className="h-11 rounded-xl border border-sky-300 bg-sky-50 text-sky-900 text-xs font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-sky-100 cursor-pointer"
+                        title="Restore the original value extracted from your medical record"
+                      >
+                        <Check className="h-4 w-4" />
+                        Use Original AI
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDecisions((prev) => ({
+                            ...prev,
+                            [item.question_key]: {
+                              value: item.answer_value,
+                              status: "CONFIRMED",
+                            },
+                          }));
+                          setEditingKey(null);
+                        }}
+                        className={`h-11 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                          decision.status === "CONFIRMED"
+                            ? "bg-[var(--teal)] text-white"
+                            : "border border-[var(--teal)] text-[var(--teal-dark)] bg-white hover:bg-[var(--teal-soft)]"
+                        }`}
+                      >
+                        <Check className="h-4 w-4" />
+                        {decision.status === "CONFIRMED" ? "Confirmed" : "Confirm"}
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => {
-                        setDecisions((prev) => ({
-                          ...prev,
-                          [item.question_key]: { value: decision.value, status: "CONFIRMED" },
-                        }));
-                        setEditingKey(null);
-                      }}
-                      className={`h-11 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                        decision.status === "CONFIRMED"
-                          ? "bg-[var(--teal)] text-white"
-                          : "border border-[var(--teal)] text-[var(--teal)] bg-white hover:bg-[var(--teal-soft)]"
+                      onClick={() => openEditor(item, decision.value)}
+                      className={`h-11 rounded-xl border text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer ${
+                        isEdited
+                          ? "border-sky-400 bg-sky-600 text-white hover:bg-sky-700"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      <Check className="h-4 w-4" />
-                      {decision.status === "CONFIRMED" ? "Confirmed" : "Confirm"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEditingKey(isEditing ? null : item.question_key)
-                      }
-                      className="h-11 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-slate-50 cursor-pointer"
-                    >
                       <Edit3 className="h-3.5 w-3.5" />
-                      {isEditing ? "Close Edit" : "Edit Answer"}
+                      {isEditing ? "Cancel Edit" : isEdited ? "Edited · Change" : "Edit Answer"}
                     </button>
                   </div>
                 </div>

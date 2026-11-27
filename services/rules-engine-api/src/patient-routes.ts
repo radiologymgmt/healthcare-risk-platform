@@ -69,7 +69,16 @@ interface SignedMagicSessionClaims {
 }
 
 function getSigningSecret(): string {
-  return process.env.MAGIC_LINK_SESSION_SECRET ?? "synthetic-dev-only-magic-link-signing-key";
+  const configured = process.env.MAGIC_LINK_SESSION_SECRET?.trim();
+  if (configured && configured.length >= 32) {
+    return configured;
+  }
+  if (!isDemoModeEnabled()) {
+    throw new Error(
+      "FATAL: MAGIC_LINK_SESSION_SECRET must be set (>= 32 characters) in production environments.",
+    );
+  }
+  return configured || "synthetic-dev-only-magic-link-signing-key";
 }
 
 function sha256Hex(raw: string): string {
@@ -214,6 +223,8 @@ async function runStediEligibilityCheck(params: {
 }
 
 export function createPatientAndMagicLinkRouter(pool: Pool, logger: HipaaLogger): Router {
+  // Fail fast in non-demo production if MAGIC_LINK_SESSION_SECRET is missing or weak
+  getSigningSecret();
   const router = Router();
 
   // =========================================================================

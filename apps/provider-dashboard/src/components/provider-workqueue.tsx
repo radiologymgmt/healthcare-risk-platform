@@ -440,9 +440,9 @@ export function ProviderWorkqueue({
   const todayKey = toDateKey(new Date());
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--bg)]">
+    <div className="min-h-screen w-full overflow-x-hidden flex flex-col bg-[var(--bg)]">
       {isDemoMode && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-center text-xs font-medium text-amber-950 flex items-center justify-center gap-2">
+        <div className="bg-amber-50 border-b border-amber-200 px-3 py-1.5 text-center text-xs font-medium text-amber-950 flex items-center justify-center gap-2">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
           <span>SYNTHETIC DEMO ENVIRONMENT &mdash; DO NOT ENTER REAL PHI</span>
         </div>
@@ -450,45 +450,90 @@ export function ProviderWorkqueue({
 
       {/* Branded RadManagement Clinical Header */}
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-white/95 backdrop-blur-sm shadow-xs">
-        <div className="mx-auto max-w-[1680px] px-5 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-5">
+        <div className="mx-auto max-w-[1680px] px-4 sm:px-5 py-2.5 md:py-0 md:h-16 flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 md:gap-4">
+          <div className="flex items-center justify-between md:justify-start gap-3 md:gap-5 min-w-0">
             <img
               src="/brand/radmanagement-logo-light.png"
               alt="RadManagement LLC — Clinical Imaging & Radiology Solutions"
-              className="h-10 w-auto object-contain"
+              className="h-8 sm:h-10 w-auto object-contain shrink-0"
             />
-            <div className="hidden md:block h-7 w-px bg-[var(--border)]" />
-            <nav aria-label="Provider views" className="flex items-center gap-1.5 bg-[var(--bg)] p-1 rounded-xl border border-[var(--border)]">
+            <div className="hidden md:block h-7 w-px bg-[var(--border)] shrink-0" />
+            <nav
+              aria-label="Provider views"
+              className="hidden md:flex items-center gap-1.5 bg-[var(--bg)] p-1 rounded-xl border border-[var(--border)]"
+            >
               <button
                 type="button"
                 onClick={() => setActiveTab("workqueue")}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === "workqueue"
                     ? "bg-[var(--navy)] text-white shadow-xs"
                     : "text-[var(--muted)] hover:text-[var(--navy)]"
                 }`}
               >
-                <ListTodo className="h-3.5 w-3.5" />
+                <ListTodo className="h-3.5 w-3.5 shrink-0" />
                 Workqueue ({items.length})
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("calendar")}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === "calendar"
                     ? "bg-[var(--navy)] text-white shadow-xs"
                     : "text-[var(--muted)] hover:text-[var(--navy)]"
                 }`}
               >
-                <Calendar className="h-3.5 w-3.5" />
+                <Calendar className="h-3.5 w-3.5 shrink-0" />
                 Patient Visits &amp; Calendar ({appointments.length})
               </button>
             </nav>
+
+            {/* Mobile Refresh Button (Row 1 right) */}
+            <button
+              type="button"
+              onClick={() => void loadAll()}
+              className="md:hidden inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--navy)] hover:bg-slate-50 cursor-pointer shrink-0"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          {/* Mobile 2-column full-width tab switcher (Row 2) */}
+          <nav
+            aria-label="Mobile Provider views"
+            className="grid grid-cols-2 md:hidden gap-1.5 bg-[var(--bg)] p-1 rounded-xl border border-[var(--border)] w-full"
+          >
+            <button
+              type="button"
+              onClick={() => setActiveTab("workqueue")}
+              className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-2.5 min-h-[40px] rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === "workqueue"
+                  ? "bg-[var(--navy)] text-white shadow-xs"
+                  : "text-[var(--muted)] hover:text-[var(--navy)]"
+              }`}
+            >
+              <ListTodo className="h-3.5 w-3.5 shrink-0" />
+              <span>Workqueue ({items.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("calendar")}
+              className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-2.5 min-h-[40px] rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === "calendar"
+                  ? "bg-[var(--navy)] text-white shadow-xs"
+                  : "text-[var(--muted)] hover:text-[var(--navy)]"
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
+              <span>Visits ({appointments.length})</span>
+            </button>
+          </nav>
+
+          {/* Desktop Right Controls */}
+          <div className="hidden md:flex items-center gap-2.5 shrink-0">
             {highOpenCount > 0 && (
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-700" />
                 {highOpenCount} High-Priority Open
               </span>
@@ -499,7 +544,7 @@ export function ProviderWorkqueue({
             <button
               type="button"
               onClick={() => void loadAll()}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--navy)] hover:bg-slate-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-[var(--navy)] hover:bg-slate-50 cursor-pointer"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
               Refresh
@@ -508,7 +553,7 @@ export function ProviderWorkqueue({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1680px] flex-1 px-5 py-5 space-y-4">
+      <main className="mx-auto w-full max-w-[1680px] flex-1 px-4 sm:px-5 py-5 space-y-4">
         {error && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-900 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-rose-700 shrink-0" />

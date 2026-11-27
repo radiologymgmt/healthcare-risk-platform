@@ -84,7 +84,7 @@ export function DemoHub({ urls }: DemoHubProps) {
         <img
           src="/brand/radmanagement-banner-dark.png"
           alt="RadManagement LLC — Elevating Radiology Operations & Clinical Imaging Workflow"
-          className="w-full h-36 sm:h-44 object-cover object-left"
+          className="w-full h-24 sm:h-40 md:h-44 object-contain sm:object-cover sm:object-left"
         />
       </div>
 
