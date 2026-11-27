@@ -113,7 +113,7 @@ resource "google_cloud_run_v2_service" "clinical_parser" {
     }
     vpc_access {
       connector = google_vpc_access_connector.serverless.id
-      egress    = "PRIVATE_RANGES_ONLY"
+      egress    = "ALL_TRAFFIC"
     }
     containers {
       image = "${local.ar_base}/clinical-parser-worker:${var.image_tag}"
@@ -166,7 +166,7 @@ resource "google_cloud_run_v2_service" "interop_worker" {
     }
     vpc_access {
       connector = google_vpc_access_connector.serverless.id
-      egress    = "PRIVATE_RANGES_ONLY"
+      egress    = "ALL_TRAFFIC"
     }
     containers {
       image = "${local.ar_base}/interop-ingestion-worker:${var.image_tag}"
@@ -203,7 +203,7 @@ resource "google_cloud_run_v2_service" "rules_engine_api" {
     }
     vpc_access {
       connector = google_vpc_access_connector.serverless.id
-      egress    = "PRIVATE_RANGES_ONLY"
+      egress    = "ALL_TRAFFIC"
     }
     containers {
       image = "${local.ar_base}/rules-engine-api:${var.image_tag}"
