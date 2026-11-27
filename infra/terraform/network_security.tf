@@ -95,7 +95,7 @@ resource "google_compute_security_policy" "patient_waf" {
     priority = 900
     match {
       expr {
-        expression = "!(origin.region_code in [${join(", ", [for c in var.allowed_geo_countries : "'${c}'"])}])"
+        expression = "!(${join(" || ", [for c in var.allowed_geo_countries : "origin.region_code == '${c}'"])})"
       }
     }
     description = "Restrict public patient portals to approved geographic regions (US)"

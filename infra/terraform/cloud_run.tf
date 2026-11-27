@@ -74,11 +74,11 @@ resource "google_project_iam_member" "interop_eventarc_receiver" {
 }
 
 resource "google_secret_manager_secret_iam_member" "db_url_access" {
-  for_each = toset([
-    google_service_account.rules_engine.email,
-    google_service_account.clinical_parser.email,
-    google_service_account.interop_worker.email,
-  ])
+  for_each = {
+    rules_engine    = google_service_account.rules_engine.email
+    clinical_parser = google_service_account.clinical_parser.email
+    interop_worker  = google_service_account.interop_worker.email
+  }
   secret_id = google_secret_manager_secret.database_url.id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${each.value}"
