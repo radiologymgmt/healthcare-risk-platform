@@ -31,6 +31,7 @@ ENV PORT=8080
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/packages/shared-contracts/package.json ./packages/shared-contracts/
 COPY --from=builder --chown=node:node /app/packages/shared-contracts/dist ./packages/shared-contracts/dist
+COPY --from=builder --chown=node:node /app/packages/shared-contracts/node_modules ./packages/shared-contracts/node_modules
 COPY --from=builder --chown=node:node /app/packages/database/package.json ./packages/database/
 COPY --from=builder --chown=node:node /app/packages/database/dist ./packages/database/dist
 COPY --from=builder --chown=node:node /app/packages/database/node_modules ./packages/database/node_modules
