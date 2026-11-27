@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getCloudRunAuthHeaders } from "@healthcare/shared-contracts";
 
 const RULES_ENGINE_API_URL =
   process.env.RULES_ENGINE_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:4001";
@@ -14,8 +15,9 @@ export async function GET(request: NextRequest) {
   request.nextUrl.searchParams.forEach((v, k) => targetUrl.searchParams.set(k, v));
 
   try {
+    const authHeaders = await getCloudRunAuthHeaders(RULES_ENGINE_API_URL);
     const upstream = await fetch(targetUrl.toString(), {
-      headers: { "x-actor-id": actorId, "x-actor-role": actorRole },
+      headers: { ...authHeaders, "x-actor-id": actorId, "x-actor-role": actorRole },
       cache: "no-store",
     });
     const text = await upstream.text();

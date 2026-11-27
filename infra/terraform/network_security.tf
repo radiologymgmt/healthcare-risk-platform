@@ -72,6 +72,13 @@ resource "google_kms_crypto_key_iam_member" "gcs_cmek" {
   member        = "serviceAccount:service-${data.google_project.current.number}@gs-project-accounts.iam.gserviceaccount.com"
 }
 
+resource "google_project_iam_member" "gcs_eventarc_pubsub" {
+  project    = var.project_id
+  role       = "roles/pubsub.publisher"
+  member     = "serviceAccount:service-${data.google_project.current.number}@gs-project-accounts.iam.gserviceaccount.com"
+  depends_on = [google_project_service.enabled]
+}
+
 # =============================================================================
 # Google Cloud Armor WAF (OWASP Top 10 + US Geo-Restriction + Rate Limiting)
 # Protects Public Patient Web (Comp 3) & Patient Mobile PWA (Comp 4)

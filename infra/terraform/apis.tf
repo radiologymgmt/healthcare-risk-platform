@@ -18,6 +18,8 @@ locals {
     "cloudkms.googleapis.com",
     "iap.googleapis.com",
     "cloudbuild.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
+    "pubsub.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
   ]

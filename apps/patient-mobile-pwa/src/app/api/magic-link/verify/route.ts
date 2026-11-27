@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getCloudRunAuthHeaders } from "@healthcare/shared-contracts";
 import { MAGIC_SESSION_COOKIE } from "@/lib/constants";
 
 const RULES_ENGINE_API_URL =
@@ -7,9 +8,10 @@ const RULES_ENGINE_API_URL =
 export async function POST(request: NextRequest) {
   const body = await request.text();
   try {
+    const authHeaders = await getCloudRunAuthHeaders(RULES_ENGINE_API_URL);
     const upstream = await fetch(`${RULES_ENGINE_API_URL}/api/v1/magic-link/verify`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { ...authHeaders, "content-type": "application/json" },
       body,
       cache: "no-store",
     });

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Router, type NextFunction, type Response } from "express";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { type HipaaLogger } from "@healthcare/shared-contracts";
+import { getCloudRunAuthHeaders, type HipaaLogger } from "@healthcare/shared-contracts";
 import { writeAuditLog } from "./audit.js";
 import { requireRole, type AuthenticatedRequest } from "./rbac.js";
 import { isDemoModeEnabled } from "./demo-mode.js";
@@ -414,9 +414,10 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
 
             if (interopBase) {
               try {
+                const authHeaders = await getCloudRunAuthHeaders(interopBase);
                 const resp = await fetch(`${interopBase}/api/v1/interop/dispatch-order`, {
                   method: "POST",
-                  headers: { "content-type": "application/json" },
+                  headers: { ...authHeaders, "content-type": "application/json" },
                   body: JSON.stringify({
                     format: d.order_format,
                     order_id: orderId,

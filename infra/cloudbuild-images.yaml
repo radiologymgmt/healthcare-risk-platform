@@ -4,6 +4,7 @@
 substitutions:
   _REGION: us-central1
   _AR_REPO: healthcare-risk-platform
+  _INSTALL_GCP_EXTRAS: "true"
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -23,7 +24,7 @@ steps:
   - id: build-clinical-parser-worker
     name: gcr.io/cloud-builders/docker
     waitFor: ["-"]
-    args: [build, -f, services/clinical-parser-worker/Dockerfile, -t, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/clinical-parser-worker:latest", .]
+    args: [build, --build-arg, "INSTALL_GCP_EXTRAS=${_INSTALL_GCP_EXTRAS}", -f, services/clinical-parser-worker/Dockerfile, -t, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/clinical-parser-worker:latest", .]
 
   - id: build-patient-web
     name: gcr.io/cloud-builders/docker

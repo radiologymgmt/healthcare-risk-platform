@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCloudRunAuthHeaders } from "@healthcare/shared-contracts";
 
 const RULES_ENGINE_API_URL =
   process.env.RULES_ENGINE_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:4001";
@@ -8,8 +9,10 @@ export async function POST() {
     return NextResponse.json({ error: "Disabled in production" }, { status: 403 });
   }
   try {
+    const authHeaders = await getCloudRunAuthHeaders(RULES_ENGINE_API_URL);
     const upstream = await fetch(`${RULES_ENGINE_API_URL}/api/v1/magic-link/demo-seed`, {
       method: "POST",
+      headers: authHeaders,
       cache: "no-store",
     });
     const text = await upstream.text();

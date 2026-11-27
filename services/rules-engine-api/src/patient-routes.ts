@@ -142,7 +142,11 @@ async function runStediEligibilityCheck(params: {
   last_name: string;
   dob: string;
 }): Promise<StediEligibilitySummary> {
-  const stediKey = process.env.STEDI_API_KEY;
+  const rawStediKey = process.env.STEDI_API_KEY?.trim() ?? "";
+  const stediKey =
+    rawStediKey && !["mock", "disabled", "synthetic", "none"].includes(rawStediKey.toLowerCase())
+      ? rawStediKey
+      : "";
   const payerName = params.payer_name ?? `Payer ${params.payer_id}`;
 
   // Production Stedi X12 270/271 Real-Time Eligibility proxy when STEDI_API_KEY is configured

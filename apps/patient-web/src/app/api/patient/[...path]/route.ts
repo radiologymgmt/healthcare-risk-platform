@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getCloudRunAuthHeaders } from "@healthcare/shared-contracts";
 
 const RULES_ENGINE_API_URL =
   process.env.RULES_ENGINE_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:4001";
@@ -28,9 +29,10 @@ async function proxyPatientApi(
   const body = method === "GET" || method === "HEAD" ? undefined : await request.text();
 
   try {
+    const authHeaders = await getCloudRunAuthHeaders(RULES_ENGINE_API_URL);
     const upstream = await fetch(targetUrl.toString(), {
       method,
-      headers: { "content-type": "application/json" },
+      headers: { ...authHeaders, "content-type": "application/json" },
       body,
       cache: "no-store",
     });

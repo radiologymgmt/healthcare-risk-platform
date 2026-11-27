@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from "pg";
-import { redactPhi, type HipaaLogger } from "@healthcare/shared-contracts";
+import { getCloudRunAuthHeaders, redactPhi, type HipaaLogger } from "@healthcare/shared-contracts";
 import { parseHl7V2Message, type ParsedPatientIdentity, type StructuredAnswerFact } from "./hl7-parser.js";
 import { parseFhirR4Bundle } from "./fhir-parser.js";
 
@@ -28,9 +28,10 @@ export function createHttpParserDispatcher(
 ): ParserDispatcher {
   const base = parserBaseUrl.replace(/\/$/, "");
   return async (payload) => {
+    const authHeaders = await getCloudRunAuthHeaders(base);
     const res = await fetch(`${base}/api/v1/parser/ingest-document`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { ...authHeaders, "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
     const body = (await res.json().catch(() => ({}))) as { extracted_count?: number };

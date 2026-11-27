@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getCloudRunAuthHeaders } from "@healthcare/shared-contracts";
 
 const RULES_ENGINE_API_URL =
   process.env.RULES_ENGINE_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:4001";
@@ -20,7 +21,8 @@ async function proxyToRulesApi(
     targetUrl.searchParams.set(key, value);
   });
 
-  const headers = new Headers();
+  const authHeaders = await getCloudRunAuthHeaders(RULES_ENGINE_API_URL);
+  const headers = new Headers(authHeaders);
   headers.set("x-actor-id", actorId);
   headers.set("x-actor-role", actorRole);
   const contentType = request.headers.get("content-type");

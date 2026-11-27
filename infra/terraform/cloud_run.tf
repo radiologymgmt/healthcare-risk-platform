@@ -265,6 +265,20 @@ resource "google_cloud_run_v2_service_iam_member" "interop_invokes_parser" {
   member   = "serviceAccount:${google_service_account.interop_worker.email}"
 }
 
+resource "google_cloud_run_v2_service_iam_member" "rules_invokes_interop" {
+  location = var.region
+  name     = google_cloud_run_v2_service.interop_worker.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.rules_engine.email}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "eventarc_invokes_interop" {
+  location = var.region
+  name     = google_cloud_run_v2_service.interop_worker.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.interop_worker.email}"
+}
+
 resource "google_cloud_run_v2_service_iam_member" "frontends_invoke_rules_api" {
   location = var.region
   name     = google_cloud_run_v2_service.rules_engine_api.name

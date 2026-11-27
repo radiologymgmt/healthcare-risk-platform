@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getCloudRunAuthHeaders } from "@healthcare/shared-contracts";
 import { MAGIC_SESSION_COOKIE } from "@/lib/constants";
 
 const RULES_ENGINE_API_URL =
@@ -11,9 +12,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const authHeaders = await getCloudRunAuthHeaders(RULES_ENGINE_API_URL);
     const upstream = await fetch(`${RULES_ENGINE_API_URL}/api/v1/magic-link/session`, {
       method: "GET",
-      headers: { authorization: `Bearer ${token}` },
+      headers: { ...authHeaders, authorization: `Bearer ${token}` },
       cache: "no-store",
     });
     const text = await upstream.text();
