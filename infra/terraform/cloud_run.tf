@@ -313,7 +313,7 @@ resource "google_cloud_run_v2_service" "frontends" {
     }
     vpc_access {
       connector = google_vpc_access_connector.serverless.id
-      egress    = "PRIVATE_RANGES_ONLY"
+      egress    = "ALL_TRAFFIC"
     }
     containers {
       image = "${local.ar_base}/${each.value.image}:${var.image_tag}"
