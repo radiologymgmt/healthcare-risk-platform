@@ -24,8 +24,8 @@ resource "google_compute_global_address" "lb_ip" {
 }
 
 resource "google_compute_managed_ssl_certificate" "demo_cert" {
-  count       = local.enable_lb ? 1 : 0
-  name_prefix = "${local.prefix}-ssl-"
+  count = local.enable_lb ? 1 : 0
+  name  = "${local.prefix}-ssl-${substr(md5(var.demo_domain), 0, 8)}"
 
   managed {
     domains = [
