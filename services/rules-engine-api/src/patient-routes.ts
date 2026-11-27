@@ -844,7 +844,7 @@ export function createPatientAndMagicLinkRouter(pool: Pool, logger: HipaaLogger)
   router.post(
     "/magic-link/demo-seed",
     async (req: Request, res: Response, next: NextFunction) => {
-      if (process.env.NODE_ENV === "production") {
+      if (!isDemoModeEnabled()) {
         res.status(403).json({ error: "Demo seed disabled in production" });
         return;
       }

@@ -511,7 +511,7 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
 
   // Non-production synthetic demo seeder so Provider Dashboard & Analytics showcase realistic triage data
   router.post("/demo-seed", async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (process.env.NODE_ENV === "production") {
+    if (!isDemoModeEnabled()) {
       res.status(403).json({ error: "Demo seed disabled in production" });
       return;
     }
