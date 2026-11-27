@@ -13,6 +13,7 @@ import { evaluateClinicalRules, type ClinicalRuleRecord } from "./evaluator.js";
 import { writeAuditLog } from "./audit.js";
 import { createAdminRouter } from "./admin-routes.js";
 import { createPatientAndMagicLinkRouter } from "./patient-routes.js";
+import { createWorkqueueRouter } from "./workqueue-routes.js";
 
 const UuidParamSchema = z.string().uuid();
 
@@ -512,7 +513,10 @@ export function createApp(
   // Mount Component 3 & 4 Patient Portal & Magic-Link APIs
   app.use("/api/v1", createPatientAndMagicLinkRouter(pool, logger));
 
-  // Mount RBAC-protected Admin Portal CRUD API (/api/v1/admin/questions, /api/v1/admin/rules)
+  // Mount Component 5 Provider Workqueue & Order Approval API (/api/v1/workqueue)
+  app.use("/api/v1/workqueue", createWorkqueueRouter(pool, logger));
+
+  // Mount RBAC-protected Admin Portal CRUD, Analytics & PDF API (/api/v1/admin/*)
   app.use("/api/v1/admin", createAdminRouter(pool, logger));
 
   // HIPAA-safe error handler (never echoes PHI or raw SQL details)

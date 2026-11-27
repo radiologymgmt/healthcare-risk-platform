@@ -18,6 +18,7 @@
     "dev:admin": "pnpm --filter @healthcare/admin-portal dev",
     "dev:patient-web": "pnpm --filter @healthcare/patient-web dev",
     "dev:mobile-pwa": "pnpm --filter @healthcare/patient-mobile-pwa dev",
+    "dev:provider": "pnpm --filter @healthcare/provider-dashboard dev",
     "test:python": "pytest services/clinical-parser-worker/tests -v && ruff check services/clinical-parser-worker/app services/clinical-parser-worker/tests"
   },
   "devDependencies": {

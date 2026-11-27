@@ -1,0 +1,29 @@
+import { NextResponse, type NextRequest } from "next/server";
+
+const RULES_ENGINE_API_URL =
+  process.env.RULES_ENGINE_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:4001";
+
+export async function GET(request: NextRequest) {
+  const actorId = request.headers.get("x-verified-actor-id");
+  const actorRole = request.headers.get("x-verified-actor-role");
+  if (!actorId || (actorRole !== "PROVIDER" && actorRole !== "ADMIN")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const targetUrl = new URL(`${RULES_ENGINE_API_URL}/api/v1/workqueue`);
+  request.nextUrl.searchParams.forEach((v, k) => targetUrl.searchParams.set(k, v));
+
+  try {
+    const upstream = await fetch(targetUrl.toString(), {
+      headers: { "x-actor-id": actorId, "x-actor-role": actorRole },
+      cache: "no-store",
+    });
+    const text = await upstream.text();
+    return new NextResponse(text, {
+      status: upstream.status,
+      headers: { "content-type": "application/json" },
+    });
+  } catch {
+    return NextResponse.json({ error: "Unable to reach clinical workqueue API" }, { status: 502 });
+  }
+}

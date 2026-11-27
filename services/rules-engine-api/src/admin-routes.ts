@@ -14,6 +14,7 @@ import {
 import { computeDerivedMetrics, enrichAnswersFromPedigree } from "./derived-metrics.js";
 import { writeAuditLog } from "./audit.js";
 import { requireRole, type AuthenticatedRequest } from "./rbac.js";
+import { registerAdminAnalyticsAndPdfRoutes } from "./admin-analytics-pdf.js";
 
 const UuidParamSchema = z.string().uuid();
 
@@ -749,6 +750,9 @@ export function createAdminRouter(pool: Pool, logger: HipaaLogger): Router {
       }
     },
   );
+
+  // Phase 5: Executive Analytics & Headless PDF Engine
+  registerAdminAnalyticsAndPdfRoutes(router, pool, logger);
 
   return router;
 }

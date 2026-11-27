@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ShieldCheck, SlidersHorizontal, ListChecks, Lock } from "lucide-react";
+import { ShieldCheck, SlidersHorizontal, ListChecks, Lock, BarChart3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +53,12 @@ export function AdminShell({
       label: "Question Registry",
       icon: ListChecks,
       active: pathname.startsWith("/questions"),
+    },
+    {
+      href: "/analytics",
+      label: "Analytics & PDF Reports",
+      icon: BarChart3,
+      active: pathname.startsWith("/analytics"),
     },
   ];
 
