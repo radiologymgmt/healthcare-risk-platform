@@ -1,0 +1,24 @@
+{
+  "name": "healthcare-risk-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:migrate": "pnpm --filter @healthcare/database migrate",
+    "db:seed": "pnpm --filter @healthcare/database seed",
+    "db:setup": "pnpm db:migrate && pnpm db:seed",
+    "dev:rules-api": "pnpm --filter @healthcare/rules-engine-api dev"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "turbo": "^2.4.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}
