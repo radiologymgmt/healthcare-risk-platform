@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
+  BookOpen,
   CheckCircle2,
   ExternalLink,
   HeartPulse,
@@ -156,6 +158,35 @@ export function DemoHub({ urls }: DemoHubProps) {
           );
         })}
       </div>
+
+      <Card className="border-[#127080]/40 bg-[#e4f4f7]/45">
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-[#0b2545] text-white flex items-center justify-center shrink-0">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-sm text-[#0b2545]">
+                  Walkthrough Guides, How-To Manuals &amp; HIPAA Security Reviews
+                </CardTitle>
+                <CardDescription className="mt-0.5 text-xs">
+                  Clinician, Patient &amp; Admin how-to manuals, IT architecture walkthrough, live
+                  Demo Security Assessment, and exact HIPAA Production Deployment Plan &amp; Security
+                  Review (printable to PDF).
+                </CardDescription>
+              </div>
+            </div>
+            <Link
+              href="/docs"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0b2545] px-4 py-2 text-xs font-semibold text-white hover:bg-[#133b66] transition-colors shrink-0"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              Open Guides &amp; Security Hub
+            </Link>
+          </div>
+        </CardHeader>
+      </Card>
     </div>
   );
 }

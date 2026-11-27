@@ -56,3 +56,16 @@ body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
 }
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #0b2545 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  pre {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+  }
+}

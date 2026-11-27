@@ -11,6 +11,7 @@ import {
   BarChart3,
   Rocket,
   AlertTriangle,
+  BookOpen,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -67,13 +68,13 @@ export function AdminShell({
       : []),
     {
       href: "/rules",
-      label: "Clinical Rules & CPT/ICD-10",
+      label: "Clinical Rules",
       icon: SlidersHorizontal,
       active: pathname === "/" || pathname.startsWith("/rules"),
     },
     {
       href: "/questions",
-      label: "Question Registry",
+      label: "Questions",
       icon: ListChecks,
       active: pathname.startsWith("/questions"),
     },
@@ -85,22 +86,28 @@ export function AdminShell({
     },
     {
       href: "/governance",
-      label: "Governance & Restore",
+      label: "Governance",
       icon: ShieldCheck,
       active: pathname.startsWith("/governance"),
+    },
+    {
+      href: "/docs",
+      label: "Guides & Security",
+      icon: BookOpen,
+      active: pathname.startsWith("/docs"),
     },
   ];
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden flex flex-col bg-background text-foreground">
       {isDemoMode && (
-        <div className="bg-amber-50 border-b border-amber-200 px-3 py-1.5 text-center text-xs font-medium text-amber-950 flex items-center justify-center gap-2">
+        <div className="bg-amber-50 border-b border-amber-200 px-3 py-1.5 text-center text-xs font-medium text-amber-950 flex items-center justify-center gap-2 print:hidden">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-700 shrink-0" />
           <span>SYNTHETIC DEMO ENVIRONMENT &mdash; DO NOT ENTER REAL PHI</span>
         </div>
       )}
 
-      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur-sm shadow-xs">
+      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur-sm shadow-xs print:hidden">
         <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-5">
           <div className="flex items-center gap-4 lg:gap-6 min-w-0">
             <Link href="/demo" className="flex items-center gap-3 shrink-0">
