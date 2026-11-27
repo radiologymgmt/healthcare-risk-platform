@@ -129,7 +129,7 @@ describe("Rules Engine API Integration Tests (PostgreSQL 16 + Synthetic Data)", 
     expect(evalRes.status).toBe(200);
     expect(evalRes.body.evaluated_rule_count).toBe(54);
     expect(evalRes.body.highest_acuity).toBe("ACUTE_RED_FLAG");
-    expect(evalRes.body.workqueue_priority).toBe("STAT");
+    expect(evalRes.body.workqueue_priority).toBe("HIGH");
     expect(evalRes.body.workqueue_item_id).toBeTruthy();
 
     const codes: string[] = evalRes.body.triggered_pathways.map(
@@ -155,7 +155,7 @@ describe("Rules Engine API Integration Tests (PostgreSQL 16 + Synthetic Data)", 
       [webSessionId],
     );
     expect(wqDb.rowCount).toBe(1);
-    expect(wqDb.rows[0]).toEqual({ priority: "STAT", status: "NEW" });
+    expect(wqDb.rows[0]).toEqual({ priority: "HIGH", status: "CONTACT_PENDING" });
 
     const sessionDb = await pool.query<{ status: string; completed_at: Date | null }>(
       "SELECT status, completed_at FROM assessment_sessions WHERE id = $1",

@@ -30,6 +30,7 @@ ENV PORT=8080
 
 COPY --from=builder --chown=node:node /app/apps/patient-web/.next/standalone ./
 COPY --from=builder --chown=node:node /app/apps/patient-web/.next/static ./apps/patient-web/.next/static
+COPY --from=builder --chown=node:node /app/apps/patient-web/public ./apps/patient-web/public
 
 USER node
 EXPOSE 8080

@@ -58,7 +58,7 @@ describe("Phase 5: Provider Workqueue, Order Approval, Executive Analytics & Hea
 
     // STAT acute red flag case MUST appear first
     const statItem = wqRes.body.items[0];
-    expect(statItem.priority).toBe("STAT");
+    expect(statItem.priority).toBe("HIGH");
     expect(statItem.triggered_pathways[0].acuity_level).toBe("ACUTE_RED_FLAG");
     expect(statItem.responses.some((r: { source_excerpt: string | null }) => Boolean(r.source_excerpt))).toBe(true);
     expect(statItem.documents.length).toBeGreaterThanOrEqual(1);
@@ -72,14 +72,14 @@ describe("Phase 5: Provider Workqueue, Order Approval, Executive Analytics & Hea
         order_format: "FHIR_SERVICE_REQUEST",
       });
     expect(orderRes.status).toBe(200);
-    expect(orderRes.body.status).toBe("COMPLETED");
+    expect(orderRes.body.status).toBe("EXAMS_ORDERED");
     expect(orderRes.body.dispatched_orders.length).toBe(statItem.triggered_pathways.length);
     expect(orderRes.body.dispatched_orders[0].payload.resourceType).toBe("ServiceRequest");
 
-    // Approve HIGH item with HL7 ORM^O01 format
-    const highItem = wqRes.body.items.find((i: { priority: string }) => i.priority === "HIGH");
+    // Approve second HIGH item with HL7 ORM^O01 format
+    const secondHighItem = wqRes.body.items[1];
     const hl7OrderRes = await request(app)
-      .post(`/api/v1/workqueue/${highItem.id}/order`)
+      .post(`/api/v1/workqueue/${secondHighItem.id}/order`)
       .set(PROVIDER_HEADERS)
       .send({
         disposition: "ORDERED",

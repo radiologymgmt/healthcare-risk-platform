@@ -2,7 +2,13 @@ import crypto from "node:crypto";
 import { Router, type NextFunction, type Response } from "express";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { getCloudRunAuthHeaders, type HipaaLogger } from "@healthcare/shared-contracts";
+import {
+  getCloudRunAuthHeaders,
+  normalizeWorkqueuePriority,
+  normalizeWorkqueueStatus,
+  WorkqueueStatusSchema,
+  type HipaaLogger,
+} from "@healthcare/shared-contracts";
 import { writeAuditLog } from "./audit.js";
 import { requireRole, type AuthenticatedRequest } from "./rbac.js";
 import { isDemoModeEnabled } from "./demo-mode.js";
@@ -14,6 +20,17 @@ const ApproveOrderSchema = z.object({
   disposition: z.enum(["APPROVED", "ORDERED", "DECLINED"]).default("ORDERED"),
   order_format: z.enum(["FHIR_SERVICE_REQUEST", "HL7_ORM"]).default("FHIR_SERVICE_REQUEST"),
   notes: z.string().max(1000).optional(),
+});
+
+const UpdateStatusSchema = z.object({
+  status: WorkqueueStatusSchema,
+  notes: z.string().max(1000).optional(),
+});
+
+const ScheduleVisitSchema = z.object({
+  scheduled_start: z.string().datetime(),
+  scheduled_end: z.string().datetime(),
+  visit_type: z.string().min(2).max(80).default("IMAGING_RISK_CONSULT"),
 });
 
 function extractIp(req: AuthenticatedRequest): string | null {
@@ -81,9 +98,10 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
   router.use(requireRole(["PROVIDER", "ADMIN"], pool, logger));
 
   /**
-   * GET /api/v1/workqueue (Section 5 — Comp 5)
-   * Returns priority-sorted queue (STAT acute triage first, then HIGH, then STANDARD)
-   * with linked triggered pathways, AI-parsed response excerpts, and clinical document URIs.
+   * GET /api/v1/workqueue (Component 5)
+   * Returns priority-sorted queue (HIGH first, then STANDARD) with workflow statuses
+   * (CONTACT_PENDING, APPOINTMENT_SCHEDULED, EXAMS_ORDERED, PATIENT_COMPLETED),
+   * triggered pathways, AI-parsed response excerpts, clinical documents, and appointments.
    */
   router.get("/", async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
@@ -108,30 +126,33 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
           p.last_name,
           p.dob,
           p.sex_at_birth,
+          p.phone,
+          p.email,
           p.insurance_status,
           s.channel AS session_channel,
           s.rules_version_snapshot
         FROM workqueue_items w
         INNER JOIN patients p ON p.id = w.patient_id
         INNER JOIN assessment_sessions s ON s.id = w.session_id
-        WHERE ($1 = '' OR w.priority = $1)
-          AND ($2 = '' OR w.status = $2)
         ORDER BY
-          CASE w.priority
-            WHEN 'STAT' THEN 1
-            WHEN 'HIGH' THEN 2
-            ELSE 3
-          END ASC,
+          CASE WHEN w.priority IN ('STAT', 'HIGH') THEN 1 ELSE 2 END ASC,
           w.created_at DESC
         LIMIT 100
         `,
-        [priorityFilter, statusFilter],
       );
 
-      const sessionIds = wqRes.rows.map((r) => r.session_id as string);
-      const patientIds = Array.from(new Set(wqRes.rows.map((r) => r.patient_id as string)));
+      const filteredRows = wqRes.rows.filter((row) => {
+        const normP = normalizeWorkqueuePriority(row.priority as string);
+        const normS = normalizeWorkqueueStatus(row.status as string);
+        if (priorityFilter && normP !== normalizeWorkqueuePriority(priorityFilter)) return false;
+        if (statusFilter && normS !== normalizeWorkqueueStatus(statusFilter)) return false;
+        return true;
+      });
 
-      const [pathwaysRes, responsesRes, docsRes] =
+      const sessionIds = filteredRows.map((r) => r.session_id as string);
+      const patientIds = Array.from(new Set(filteredRows.map((r) => r.patient_id as string)));
+
+      const [pathwaysRes, responsesRes, docsRes, apptsRes] =
         sessionIds.length > 0
           ? await Promise.all([
               pool.query(
@@ -205,10 +226,27 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
                 `,
                 [patientIds],
               ),
+              pool.query(
+                `
+                SELECT
+                  id,
+                  patient_id,
+                  workqueue_item_id,
+                  scheduled_start,
+                  scheduled_end,
+                  visit_type,
+                  status,
+                  created_at
+                FROM appointments
+                WHERE patient_id = ANY($1::uuid[])
+                ORDER BY scheduled_start ASC
+                `,
+                [patientIds],
+              ),
             ])
-          : [{ rows: [] }, { rows: [] }, { rows: [] }];
+          : [{ rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }];
 
-      const items = wqRes.rows.map((row) => {
+      const items = filteredRows.map((row) => {
         const dobStr =
           row.dob instanceof Date ? row.dob.toISOString().slice(0, 10) : String(row.dob).slice(0, 10);
         const pathways = pathwaysRes.rows
@@ -224,14 +262,15 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
             confidence_score: r.confidence_score !== null ? Number(r.confidence_score) : null,
           }));
         const documents = docsRes.rows.filter((d) => d.patient_id === row.patient_id);
+        const appointments = apptsRes.rows.filter((a) => a.patient_id === row.patient_id);
 
         return {
           id: row.id,
           patient_id: row.patient_id,
           session_id: row.session_id,
           assigned_provider_id: row.assigned_provider_id,
-          priority: row.priority,
-          status: row.status,
+          priority: normalizeWorkqueuePriority(row.priority as string),
+          status: normalizeWorkqueueStatus(row.status as string),
           notes: row.notes,
           session_channel: row.session_channel,
           rules_version_snapshot: row.rules_version_snapshot,
@@ -244,11 +283,14 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
             last_name: row.last_name,
             dob: dobStr,
             sex_at_birth: row.sex_at_birth,
+            phone: row.phone,
+            email: row.email,
             insurance_status: row.insurance_status ?? {},
           },
           triggered_pathways: pathways,
           responses,
           documents,
+          appointments,
         };
       });
 
@@ -262,6 +304,183 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
       });
 
       res.json({ total: items.length, items });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /**
+   * GET /api/v1/workqueue/appointments
+   * Returns all scheduled patient visits for the Provider Calendar & Visits view.
+   */
+  router.get("/appointments", async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const appts = await pool.query(
+        `
+        SELECT
+          a.id,
+          a.patient_id,
+          a.workqueue_item_id,
+          a.scheduled_start,
+          a.scheduled_end,
+          a.visit_type,
+          a.status,
+          a.created_at,
+          p.first_name,
+          p.last_name,
+          p.mrn,
+          p.dob,
+          w.priority AS workqueue_priority,
+          w.status AS workqueue_status
+        FROM appointments a
+        INNER JOIN patients p ON p.id = a.patient_id
+        LEFT JOIN workqueue_items w ON w.id = a.workqueue_item_id
+        ORDER BY a.scheduled_start ASC
+        LIMIT 200
+        `,
+      );
+
+      const appointments = appts.rows.map((r) => ({
+        id: r.id,
+        patient_id: r.patient_id,
+        workqueue_item_id: r.workqueue_item_id,
+        scheduled_start: r.scheduled_start,
+        scheduled_end: r.scheduled_end,
+        visit_type: r.visit_type,
+        status: r.status,
+        patient_name: `${r.first_name} ${r.last_name}`,
+        mrn: r.mrn,
+        dob: r.dob instanceof Date ? r.dob.toISOString().slice(0, 10) : String(r.dob).slice(0, 10),
+        priority: normalizeWorkqueuePriority(r.workqueue_priority as string | null),
+        workqueue_status: normalizeWorkqueueStatus(r.workqueue_status as string | null),
+      }));
+
+      await writeAuditLog(pool, {
+        actor_id: req.actor!.actor_id,
+        actor_role: req.actor!.actor_role,
+        action: "VIEW_CALENDAR",
+        resource_type: "appointments",
+        ip_address: extractIp(req),
+        metadata: { count: appointments.length },
+      });
+
+      res.json({ appointments });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /**
+   * PATCH /api/v1/workqueue/:id/status
+   * Updates workqueue status (CONTACT_PENDING | APPOINTMENT_SCHEDULED | EXAMS_ORDERED | PATIENT_COMPLETED).
+   */
+  router.patch("/:id/status", async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const idCheck = UuidSchema.safeParse(req.params.id);
+      if (!idCheck.success) {
+        res.status(400).json({ error: "Invalid workqueue_item_id UUID" });
+        return;
+      }
+      const parsed = UpdateStatusSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "Invalid status payload", details: parsed.error.flatten() });
+        return;
+      }
+      const d = parsed.data;
+      const updated = await pool.query(
+        `
+        UPDATE workqueue_items
+        SET status = $1,
+            assigned_provider_id = COALESCE(assigned_provider_id, $2),
+            notes = COALESCE($3, notes),
+            updated_at = NOW()
+        WHERE id = $4
+        RETURNING id, patient_id, session_id, priority, status, notes, updated_at
+        `,
+        [d.status, req.actor!.actor_id, d.notes ?? null, idCheck.data],
+      );
+      if (!updated.rowCount) {
+        res.status(404).json({ error: "Workqueue item not found" });
+        return;
+      }
+      const row = updated.rows[0]!;
+      if (d.status === "PATIENT_COMPLETED") {
+        await pool.query(`UPDATE assessment_sessions SET status = 'REVIEWED' WHERE id = $1`, [
+          row.session_id,
+        ]);
+      }
+
+      await writeAuditLog(pool, {
+        actor_id: req.actor!.actor_id,
+        actor_role: req.actor!.actor_role,
+        action: "UPDATE_WORKQUEUE_STATUS",
+        resource_type: "workqueue_item",
+        resource_id: row.id,
+        ip_address: extractIp(req),
+        metadata: { status: d.status },
+      });
+
+      res.json({
+        workqueue_item: {
+          ...row,
+          priority: normalizeWorkqueuePriority(row.priority as string),
+          status: normalizeWorkqueueStatus(row.status as string),
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /**
+   * POST /api/v1/workqueue/:id/schedule
+   * Schedules a patient visit from the Provider Workqueue and transitions status -> APPOINTMENT_SCHEDULED.
+   */
+  router.post("/:id/schedule", async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const idCheck = UuidSchema.safeParse(req.params.id);
+      if (!idCheck.success) {
+        res.status(400).json({ error: "Invalid workqueue_item_id UUID" });
+        return;
+      }
+      const parsed = ScheduleVisitSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "Invalid visit payload", details: parsed.error.flatten() });
+        return;
+      }
+      const wq = await pool.query<{ id: string; patient_id: string }>(
+        `SELECT id, patient_id FROM workqueue_items WHERE id = $1`,
+        [idCheck.data],
+      );
+      if (!wq.rowCount) {
+        res.status(404).json({ error: "Workqueue item not found" });
+        return;
+      }
+      const d = parsed.data;
+      const inserted = await pool.query(
+        `
+        INSERT INTO appointments (patient_id, workqueue_item_id, scheduled_start, scheduled_end, visit_type, status)
+        VALUES ($1, $2, $3, $4, $5, 'BOOKED')
+        RETURNING id, patient_id, workqueue_item_id, scheduled_start, scheduled_end, visit_type, status
+        `,
+        [wq.rows[0]!.patient_id, wq.rows[0]!.id, d.scheduled_start, d.scheduled_end, d.visit_type],
+      );
+      await pool.query(
+        `UPDATE workqueue_items SET status = 'APPOINTMENT_SCHEDULED', updated_at = NOW() WHERE id = $1`,
+        [wq.rows[0]!.id],
+      );
+
+      await writeAuditLog(pool, {
+        actor_id: req.actor!.actor_id,
+        actor_role: req.actor!.actor_role,
+        action: "SCHEDULE_VISIT",
+        resource_type: "appointment",
+        resource_id: inserted.rows[0]!.id,
+        ip_address: extractIp(req),
+        metadata: { workqueue_item_id: wq.rows[0]!.id, visit_type: d.visit_type },
+      });
+
+      res.status(201).json({ appointment: inserted.rows[0]! });
     } catch (err) {
       next(err);
     }
@@ -365,11 +584,11 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
           [wq.session_id],
         );
         const nextStatus =
-          Number(remainingPending.rows[0]!.cnt) === 0
-            ? "COMPLETED"
-            : d.disposition === "ORDERED"
-              ? "PENDING_PRIOR_AUTH"
-              : "IN_REVIEW";
+          d.disposition === "ORDERED" || d.disposition === "APPROVED"
+            ? "EXAMS_ORDERED"
+            : Number(remainingPending.rows[0]!.cnt) === 0
+              ? "PATIENT_COMPLETED"
+              : "CONTACT_PENDING";
 
         await client.query(
           `
@@ -383,7 +602,7 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
           [providerId, nextStatus, d.notes ?? null, wq.id],
         );
 
-        if (nextStatus === "COMPLETED") {
+        if (nextStatus === "PATIENT_COMPLETED" || nextStatus === "EXAMS_ORDERED") {
           await client.query(`UPDATE assessment_sessions SET status = 'REVIEWED' WHERE id = $1`, [
             wq.session_id,
           ]);
@@ -403,11 +622,9 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
           for (const p of targetPathways.rows) {
             const orderId = `ORD-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
             const orderPriority =
-              p.acuity_level === "ACUTE_RED_FLAG"
-                ? "stat"
-                : p.acuity_level === "HIGH_RISK"
-                  ? "urgent"
-                  : "routine";
+              p.acuity_level === "ACUTE_RED_FLAG" || p.acuity_level === "HIGH_RISK"
+                ? "urgent"
+                : "routine";
 
             let dispatchedVia: "INTEROP_SERVICE" | "LOCAL_SERIALIZER" = "LOCAL_SERIALIZER";
             let payload: unknown = null;
@@ -509,7 +726,7 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
     }
   });
 
-  // Non-production synthetic demo seeder so Provider Dashboard & Analytics showcase realistic triage data
+  // Synthetic demo seeder for Provider Workqueue & Visits Calendar (HIGH & STANDARD priorities across all 4 workflow statuses)
   router.post("/demo-seed", async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!isDemoModeEnabled()) {
       res.status(403).json({ error: "Demo seed disabled in production" });
@@ -520,18 +737,24 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
     try {
       await client.query("BEGIN");
       const suffix = crypto.randomBytes(2).toString("hex").toUpperCase();
+      const now = new Date();
+      const addDaysAt = (days: number, hourUtc: number) => {
+        const d = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+        d.setUTCHours(hourUtc, 0, 0, 0);
+        return d.toISOString();
+      };
 
-      // Case 1: STAT Acute Red Flag (SNNOOP10 + USPSTF Lung)
+      // Case 1: HIGH Priority — Contact Pending
       const p1 = await client.query<{ id: string }>(
-        `INSERT INTO patients (mrn, first_name, last_name, dob, sex_at_birth, zip_code, insurance_status)
-         VALUES ($1, 'Synthetic', 'AcuteCase', '1960-04-12', 'Male', '94107', '{"eligible":true,"coverage_status":"ACTIVE","plan_name":"PPO Gold (Synthetic)"}'::jsonb)
+        `INSERT INTO patients (mrn, first_name, last_name, dob, sex_at_birth, zip_code, phone, email, insurance_status)
+         VALUES ($1, 'Robert', 'Caldwell', '1960-04-12', 'Male', '94107', '(555) 201-4410', 'r.caldwell.synthetic@example.org', '{"eligible":true,"coverage_status":"ACTIVE","plan_name":"PPO Gold (Synthetic)"}'::jsonb)
          RETURNING id`,
-        [`SYN-WQ-STAT-${suffix}`],
+        [`SYN-HIGH-${suffix}A`],
       );
       const d1 = await client.query<{ id: string }>(
         `INSERT INTO clinical_documents (patient_id, source_type, document_category, gcs_uri, extracted_text, parsed_status)
          VALUES ($1, 'FOLDER_PDF', 'VISIT_NOTE', 'gs://synthetic-clinic/triage-note.pdf',
-                 'SYNTHETIC TRIAGE NOTE: Patient reports sudden thunderclap headache onset 2 hours ago. Current smoker with 32 pack-year history and COPD.', 'PARSED')
+                 'SYNTHETIC TRIAGE NOTE: Patient (5 ft 10 in, 198 lbs) reports severe sudden headache onset and 32 pack-year smoking history with mild COPD.', 'PARSED')
          RETURNING id`,
         [p1.rows[0]!.id],
       );
@@ -542,29 +765,32 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
       await client.query(
         `INSERT INTO assessment_responses (session_id, patient_id, question_key, answer_value, provenance, confidence_score, source_document_id, source_excerpt)
          VALUES
-           ($1, $2, 'has_thunderclap_headache', 'true'::jsonb, 'PATIENT_ENTERED', 1.0, $3, 'Patient reports sudden thunderclap headache onset 2 hours ago.'),
-           ($1, $2, 'smoking_status', '"current"'::jsonb, 'AI_PARSED', 0.96, $3, 'Current smoker with 32 pack-year history and COPD.'),
-           ($1, $2, 'pack_years', '32'::jsonb, 'AI_PARSED', 0.95, $3, 'Current smoker with 32 pack-year history and COPD.')`,
+           ($1, $2, 'height_cm', '177.8'::jsonb, 'PATIENT_ENTERED', 1.0, $3, 'Patient height recorded at 5 ft 10 in.'),
+           ($1, $2, 'weight_kg', '89.8'::jsonb, 'PATIENT_ENTERED', 1.0, $3, 'Patient weight recorded at 198 lbs.'),
+           ($1, $2, 'has_thunderclap_headache', 'true'::jsonb, 'PATIENT_ENTERED', 1.0, $3, 'Patient reports severe sudden headache onset.'),
+           ($1, $2, 'smoking_status', '"current"'::jsonb, 'AI_PARSED', 0.96, $3, '32 pack-year smoking history with mild COPD.'),
+           ($1, $2, 'pack_years', '32'::jsonb, 'AI_PARSED', 0.95, $3, '32 pack-year smoking history with mild COPD.')`,
         [s1.rows[0]!.id, p1.rows[0]!.id, d1.rows[0]!.id],
       );
       await client.query(
         `INSERT INTO triggered_pathways (session_id, patient_id, rule_code, calculated_score, acuity_level, recommended_intervention, cpt_codes, icd10_codes)
          VALUES
-           ($1, $2, 'SNNOOP10', NULL, 'ACUTE_RED_FLAG', 'STAT Urgent Neuroimaging (CT Head Non-Contrast / MRI Brain) & Acute Neurology Triage', ARRAY['70450','70553'], ARRAY['R51.9','G44.53']),
+           ($1, $2, 'SNNOOP10', NULL, 'ACUTE_RED_FLAG', 'Priority Neuroimaging (CT Head Non-Contrast / MRI Brain) & Neurology Triage', ARRAY['70450','70553'], ARRAY['R51.9','G44.53']),
            ($1, $2, 'USPSTF_LUNG', NULL, 'HIGH_RISK', 'Low-Dose CT Thorax (LDCT)', ARRAY['71271'], ARRAY['Z87.891'])`,
         [s1.rows[0]!.id, p1.rows[0]!.id],
       );
       await client.query(
-        `INSERT INTO workqueue_items (patient_id, session_id, priority, status) VALUES ($1, $2, 'STAT', 'NEW')`,
+        `INSERT INTO workqueue_items (patient_id, session_id, priority, status, notes)
+         VALUES ($1, $2, 'HIGH', 'CONTACT_PENDING', 'Awaiting care coordinator outreach to schedule imaging consult.')`,
         [p1.rows[0]!.id, s1.rows[0]!.id],
       );
 
-      // Case 2: HIGH Risk Oncology & Hepatology EHR Labs
+      // Case 2: HIGH Priority — Appointment Scheduled
       const p2 = await client.query<{ id: string }>(
-        `INSERT INTO patients (mrn, first_name, last_name, dob, sex_at_birth, zip_code, insurance_status)
-         VALUES ($1, 'Synthetic', 'HighRiskOnc', '1978-08-22', 'Female', '94107', '{"eligible":true,"coverage_status":"ACTIVE","plan_name":"Commercial HMO (Synthetic)"}'::jsonb)
+        `INSERT INTO patients (mrn, first_name, last_name, dob, sex_at_birth, zip_code, phone, email, insurance_status)
+         VALUES ($1, 'Elena', 'Vance', '1978-08-22', 'Female', '94107', '(555) 201-8824', 'e.vance.synthetic@example.org', '{"eligible":true,"coverage_status":"ACTIVE","plan_name":"Commercial HMO (Synthetic)"}'::jsonb)
          RETURNING id`,
-        [`SYN-WQ-HIGH-${suffix}`],
+        [`SYN-HIGH-${suffix}B`],
       );
       const d2 = await client.query<{ id: string }>(
         `INSERT INTO clinical_documents (patient_id, source_type, document_category, gcs_uri, extracted_text, parsed_status)
@@ -580,6 +806,8 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
       await client.query(
         `INSERT INTO assessment_responses (session_id, patient_id, question_key, answer_value, provenance, confidence_score, source_document_id, source_excerpt)
          VALUES
+           ($1, $2, 'height_cm', '165.1'::jsonb, 'PATIENT_ENTERED', 1.0, $3, 'Height 5 ft 5 in.'),
+           ($1, $2, 'weight_kg', '64.4'::jsonb, 'PATIENT_ENTERED', 1.0, $3, 'Weight 142 lbs.'),
            ($1, $2, 'has_atypical_hyperplasia_or_lcis', 'true'::jsonb, 'PATIENT_CONFIRMED_AI', 0.95, $3, 'Breast biopsy positive for atypical ductal hyperplasia (ADH).'),
            ($1, $2, 'breast_density_birads', '"D"'::jsonb, 'AI_PARSED', 0.97, $3, 'Mammogram BI-RADS density D.'),
            ($1, $2, 'lab_ast_u_l', '94'::jsonb, 'EHR_LAB_IMPORT', 1.0, $3, 'AST 94 U/L, ALT 51 U/L, Platelets 112 K/uL.')`,
@@ -592,13 +820,85 @@ export function createWorkqueueRouter(pool: Pool, logger: HipaaLogger): Router {
            ($1, $2, 'FIB4', 5.56, 'HIGH_RISK', 'Vibration-Controlled Transient Elastography (FibroScan) & Hepatology Referral', ARRAY['91200','99244'], ARRAY['K76.0','K74.00'])`,
         [s2.rows[0]!.id, p2.rows[0]!.id],
       );
-      await client.query(
-        `INSERT INTO workqueue_items (patient_id, session_id, priority, status) VALUES ($1, $2, 'HIGH', 'NEW')`,
+      const w2 = await client.query<{ id: string }>(
+        `INSERT INTO workqueue_items (patient_id, session_id, priority, status, notes)
+         VALUES ($1, $2, 'HIGH', 'APPOINTMENT_SCHEDULED', 'Breast MRI consult booked; prior-auth documentation verified.') RETURNING id`,
         [p2.rows[0]!.id, s2.rows[0]!.id],
+      );
+      await client.query(
+        `INSERT INTO appointments (patient_id, workqueue_item_id, scheduled_start, scheduled_end, visit_type, status)
+         VALUES ($1, $2, $3, $4, 'HIGH_RISK_BREAST_MRI_CONSULT', 'CONFIRMED')`,
+        [p2.rows[0]!.id, w2.rows[0]!.id, addDaysAt(1, 16), addDaysAt(1, 17)],
+      );
+
+      // Case 3: STANDARD Priority — Exams Ordered
+      const p3 = await client.query<{ id: string }>(
+        `INSERT INTO patients (mrn, first_name, last_name, dob, sex_at_birth, zip_code, phone, email, insurance_status)
+         VALUES ($1, 'David', 'Morales', '1969-11-05', 'Male', '94107', '(555) 201-6731', 'd.morales.synthetic@example.org', '{"eligible":true,"coverage_status":"ACTIVE","plan_name":"Blue Shield PPO (Synthetic)"}'::jsonb)
+         RETURNING id`,
+        [`SYN-STD-${suffix}C`],
+      );
+      const s3 = await client.query<{ id: string }>(
+        `INSERT INTO assessment_sessions (patient_id, channel, status) VALUES ($1, 'WEB_PORTAL', 'REVIEWED') RETURNING id`,
+        [p3.rows[0]!.id],
+      );
+      await client.query(
+        `INSERT INTO assessment_responses (session_id, patient_id, question_key, answer_value, provenance)
+         VALUES
+           ($1, $2, 'height_cm', '180.3'::jsonb, 'PATIENT_ENTERED'),
+           ($1, $2, 'weight_kg', '88.5'::jsonb, 'PATIENT_ENTERED')`,
+        [s3.rows[0]!.id, p3.rows[0]!.id],
+      );
+      await client.query(
+        `INSERT INTO triggered_pathways (session_id, patient_id, rule_code, calculated_score, acuity_level, recommended_intervention, cpt_codes, icd10_codes, clinician_disposition)
+         VALUES
+           ($1, $2, 'MESA_CAC', 11.4, 'MODERATE_RISK', 'Coronary Artery Calcium (CAC) CT Scan & Preventive Cardiology Review', ARRAY['75571'], ARRAY['Z13.6','E78.5'], 'ORDERED')`,
+        [s3.rows[0]!.id, p3.rows[0]!.id],
+      );
+      const w3 = await client.query<{ id: string }>(
+        `INSERT INTO workqueue_items (patient_id, session_id, priority, status, notes)
+         VALUES ($1, $2, 'STANDARD', 'EXAMS_ORDERED', 'CAC CT (CPT 75571) ordered via FHIR ServiceRequest; imaging center scheduled.') RETURNING id`,
+        [p3.rows[0]!.id, s3.rows[0]!.id],
+      );
+      await client.query(
+        `INSERT INTO appointments (patient_id, workqueue_item_id, scheduled_start, scheduled_end, visit_type, status)
+         VALUES ($1, $2, $3, $4, 'CORONARY_CALCIUM_CT', 'BOOKED')`,
+        [p3.rows[0]!.id, w3.rows[0]!.id, addDaysAt(2, 18), addDaysAt(2, 19)],
+      );
+
+      // Case 4: STANDARD Priority — Patient Completed
+      const p4 = await client.query<{ id: string }>(
+        `INSERT INTO patients (mrn, first_name, last_name, dob, sex_at_birth, zip_code, phone, email, insurance_status)
+         VALUES ($1, 'Margaret', 'Chen', '1958-02-19', 'Female', '94107', '(555) 201-9102', 'm.chen.synthetic@example.org', '{"eligible":true,"coverage_status":"ACTIVE","plan_name":"Medicare Part B (Synthetic)"}'::jsonb)
+         RETURNING id`,
+        [`SYN-STD-${suffix}D`],
+      );
+      const s4 = await client.query<{ id: string }>(
+        `INSERT INTO assessment_sessions (patient_id, channel, status) VALUES ($1, 'WEB_PORTAL', 'REVIEWED') RETURNING id`,
+        [p4.rows[0]!.id],
+      );
+      await client.query(
+        `INSERT INTO triggered_pathways (session_id, patient_id, rule_code, calculated_score, acuity_level, recommended_intervention, cpt_codes, icd10_codes, clinician_disposition)
+         VALUES
+           ($1, $2, 'OSTA', NULL, 'ROUTINE', 'Dual-Energy X-Ray Absorptiometry (DEXA) Bone Mineral Density Scan', ARRAY['77080'], ARRAY['Z13.820'], 'ORDERED')`,
+        [s4.rows[0]!.id, p4.rows[0]!.id],
+      );
+      const w4 = await client.query<{ id: string }>(
+        `INSERT INTO workqueue_items (patient_id, session_id, priority, status, notes)
+         VALUES ($1, $2, 'STANDARD', 'PATIENT_COMPLETED', 'DEXA imaging completed; report delivered to referring provider.') RETURNING id`,
+        [p4.rows[0]!.id, s4.rows[0]!.id],
+      );
+      await client.query(
+        `INSERT INTO appointments (patient_id, workqueue_item_id, scheduled_start, scheduled_end, visit_type, status)
+         VALUES ($1, $2, $3, $4, 'DEXA_BONE_DENSITY_SCAN', 'COMPLETED')`,
+        [p4.rows[0]!.id, w4.rows[0]!.id, addDaysAt(0, 15), addDaysAt(0, 16)],
       );
 
       await client.query("COMMIT");
-      res.status(201).json({ seeded: 2, session_ids: [s1.rows[0]!.id, s2.rows[0]!.id] });
+      res.status(201).json({
+        seeded: 4,
+        session_ids: [s1.rows[0]!.id, s2.rows[0]!.id, s3.rows[0]!.id, s4.rows[0]!.id],
+      });
     } catch (err) {
       await client.query("ROLLBACK");
       next(err);

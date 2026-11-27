@@ -169,8 +169,12 @@ export function computeDerivedMetrics(
   const isFemale = sex === "Female";
   const isMale = sex === "Male";
 
-  const heightCm = num(answers.height_cm);
-  const weightKg = num(answers.weight_kg);
+  const heightInches = num(answers.height_inches);
+  const heightCm =
+    num(answers.height_cm) ?? (heightInches !== null && heightInches > 0 ? round3(heightInches * 2.54) : null);
+  const weightLbs = num(answers.weight_lbs);
+  const weightKg =
+    num(answers.weight_kg) ?? (weightLbs !== null && weightLbs > 0 ? round3(weightLbs * 0.45359237) : null);
   const bmi =
     heightCm !== null && heightCm > 0 && weightKg !== null && weightKg > 0
       ? round3(weightKg / Math.pow(heightCm / 100, 2))

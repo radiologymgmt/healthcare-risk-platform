@@ -126,7 +126,7 @@ describe("Rules Engine Unit Tests (Synthetic Patient Profiles)", () => {
     expect(codes).toContain("WELLS_DVT_PE");
     expect(codes).toContain("GENEVA_PE");
     expect(outcome.highest_acuity).toBe("ACUTE_RED_FLAG");
-    expect(outcome.workqueue_priority).toBe("STAT");
+    expect(outcome.workqueue_priority).toBe("HIGH");
     // Every ACUTE_RED_FLAG pathway must precede non-acute pathways
     expect(outcome.triggered_pathways[0]!.acuity_level).toBe("ACUTE_RED_FLAG");
   });

@@ -103,17 +103,39 @@ export const ClinicianDispositionSchema = z.enum([
 ]);
 export type ClinicianDisposition = z.infer<typeof ClinicianDispositionSchema>;
 
-export const WorkqueuePrioritySchema = z.enum(["STAT", "HIGH", "STANDARD"]);
+export const WorkqueuePrioritySchema = z.enum(["HIGH", "STANDARD"]);
 export type WorkqueuePriority = z.infer<typeof WorkqueuePrioritySchema>;
 
 export const WorkqueueStatusSchema = z.enum([
-  "NEW",
-  "IN_REVIEW",
-  "PENDING_PRIOR_AUTH",
-  "SCHEDULED",
-  "COMPLETED",
+  "CONTACT_PENDING",
+  "APPOINTMENT_SCHEDULED",
+  "EXAMS_ORDERED",
+  "PATIENT_COMPLETED",
 ]);
 export type WorkqueueStatus = z.infer<typeof WorkqueueStatusSchema>;
+
+export const WORKQUEUE_STATUS_LABELS: Record<WorkqueueStatus, string> = {
+  CONTACT_PENDING: "Contact Pending",
+  APPOINTMENT_SCHEDULED: "Appointment Scheduled",
+  EXAMS_ORDERED: "Exams Ordered",
+  PATIENT_COMPLETED: "Patient Completed",
+};
+
+export function normalizeWorkqueuePriority(raw: string | null | undefined): WorkqueuePriority {
+  const upper = (raw ?? "").trim().toUpperCase();
+  if (upper === "STAT" || upper === "HIGH" || upper === "ACUTE_RED_FLAG" || upper === "HIGH_RISK") {
+    return "HIGH";
+  }
+  return "STANDARD";
+}
+
+export function normalizeWorkqueueStatus(raw: string | null | undefined): WorkqueueStatus {
+  const upper = (raw ?? "").trim().toUpperCase();
+  if (upper === "APPOINTMENT_SCHEDULED" || upper === "SCHEDULED") return "APPOINTMENT_SCHEDULED";
+  if (upper === "EXAMS_ORDERED" || upper === "ORDERED") return "EXAMS_ORDERED";
+  if (upper === "PATIENT_COMPLETED" || upper === "COMPLETED") return "PATIENT_COMPLETED";
+  return "CONTACT_PENDING";
+}
 
 export const ActorRoleSchema = z.enum(["PATIENT", "PROVIDER", "ADMIN", "SYSTEM"]);
 export type ActorRole = z.infer<typeof ActorRoleSchema>;
@@ -126,7 +148,6 @@ export const ACUITY_RANK: Record<AcuityLevel, number> = {
 };
 
 export function acuityToWorkqueuePriority(acuity: AcuityLevel): WorkqueuePriority {
-  if (acuity === "ACUTE_RED_FLAG") return "STAT";
-  if (acuity === "HIGH_RISK") return "HIGH";
+  if (acuity === "ACUTE_RED_FLAG" || acuity === "HIGH_RISK") return "HIGH";
   return "STANDARD";
 }

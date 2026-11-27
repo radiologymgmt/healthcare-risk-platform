@@ -415,7 +415,7 @@ export function createPatientAndMagicLinkRouter(pool: Pool, logger: HipaaLogger)
 
       if (d.workqueue_item_id) {
         await pool.query(
-          `UPDATE workqueue_items SET status = 'SCHEDULED', updated_at = NOW() WHERE id = $1`,
+          `UPDATE workqueue_items SET status = 'APPOINTMENT_SCHEDULED', updated_at = NOW() WHERE id = $1`,
           [d.workqueue_item_id],
         );
       }

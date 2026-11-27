@@ -20,8 +20,8 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
   {
     question_key: "height_cm",
     domain: "Demographics",
-    label_plain_english: "What is your height (in centimeters)?",
-    helper_tooltip: "Used together with weight to calculate BMI across cardiovascular, sleep, bone, and liver risk scores.",
+    label_plain_english: "What is your height (feet and inches)?",
+    helper_tooltip: "Used together with your weight in pounds to calculate BMI across cardiovascular, sleep, bone, and liver preventive risk scores.",
     input_type: "number",
     options_json: [],
     data_source: "HYBRID",
@@ -32,8 +32,8 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
   {
     question_key: "weight_kg",
     domain: "Demographics",
-    label_plain_english: "What is your current weight (in kilograms)?",
-    helper_tooltip: "Used to compute BMI, OSTA osteoporosis risk, STOP-BANG, and NAFLD fibrosis risk.",
+    label_plain_english: "What is your current weight (in pounds, lbs)?",
+    helper_tooltip: "Enter your weight in US pounds (lbs). Used with height to calculate BMI, bone-density screening (OSTA), sleep apnea (STOP-BANG), and liver health scores.",
     input_type: "number",
     options_json: [],
     data_source: "HYBRID",
@@ -1292,8 +1292,8 @@ export const SEED_QUESTIONS: readonly SeedQuestion[] = [
   {
     question_key: "neck_circumference_over_40cm",
     domain: "Sleep",
-    label_plain_english: "Is your neck circumference larger than 40 cm (16 inches)?",
-    helper_tooltip: "STOP-BANG 'N' criterion.",
+    label_plain_english: "Is your neck circumference larger than 16 inches?",
+    helper_tooltip: "A neck measurement over 16 inches is one of the clinical factors evaluated in the STOP-BANG sleep apnea screen.",
     input_type: "boolean",
     options_json: [],
     data_source: "HYBRID",

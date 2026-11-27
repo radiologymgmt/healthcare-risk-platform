@@ -30,6 +30,7 @@ ENV PORT=8080
 
 COPY --from=builder --chown=node:node /app/apps/provider-dashboard/.next/standalone ./
 COPY --from=builder --chown=node:node /app/apps/provider-dashboard/.next/static ./apps/provider-dashboard/.next/static
+COPY --from=builder --chown=node:node /app/apps/provider-dashboard/public ./apps/provider-dashboard/public
 
 USER node
 EXPOSE 8080

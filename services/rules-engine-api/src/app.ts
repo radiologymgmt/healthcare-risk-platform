@@ -437,7 +437,7 @@ export function createApp(
               const wqInsert = await client.query<{ id: string }>(
                 `
                 INSERT INTO workqueue_items (patient_id, session_id, priority, status)
-                VALUES ($1, $2, $3, 'NEW')
+                VALUES ($1, $2, $3, 'CONTACT_PENDING')
                 RETURNING id
                 `,
                 [session.patient_id, sessionId, outcome.workqueue_priority],

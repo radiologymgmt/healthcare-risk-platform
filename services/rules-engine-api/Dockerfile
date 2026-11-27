@@ -47,6 +47,7 @@ COPY --from=builder --chown=node:node /app/packages/database/migrations ./packag
 COPY --from=builder --chown=node:node /app/packages/database/node_modules ./packages/database/node_modules
 COPY --from=builder --chown=node:node /app/services/rules-engine-api/package.json ./services/rules-engine-api/
 COPY --from=builder --chown=node:node /app/services/rules-engine-api/dist ./services/rules-engine-api/dist
+COPY --from=builder --chown=node:node /app/services/rules-engine-api/assets ./services/rules-engine-api/assets
 COPY --from=builder --chown=node:node /app/services/rules-engine-api/node_modules ./services/rules-engine-api/node_modules
 
 USER node

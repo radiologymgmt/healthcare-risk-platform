@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Clinical Configuration Portal | Enterprise Healthcare Risk Platform",
+  title: "RadManagement LLC | Clinical Configuration & Analytics Portal",
   description:
-    "HIPAA-compliant no-code Question Registry and JsonLogic Clinical Rule & CPT/ICD-10 configuration portal.",
+    "RadManagement LLC no-code Question Registry, JsonLogic Clinical Rules, CPT/ICD-10 Governance, and Executive Analytics Portal.",
+  icons: {
+    icon: "/brand/radmanagement-mark.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -61,36 +61,44 @@ export function DemoHub({ urls }: DemoHubProps) {
         "Click 'Generate Synthetic Demo Magic Link', unlock with synthetic DOB/ZIP, and confirm AI-parsed visit-note excerpts.",
     },
     {
-      title: "3. Provider Triage Workqueue",
-      subtitle: "Component 5 · STAT-First Triage, Split-Screen Excerpts & One-Click Orders",
+      title: "3. Provider Clinical Workqueue & Visits Calendar",
+      subtitle: "Component 5 · HIGH/STANDARD Priority, Workflow Statuses & Patient Calendar",
       href: urls.providerDashboard,
       icon: Stethoscope,
       steps:
-        "Click '+ Seed Synthetic Cases' (or review submitted intakes), verify CPT/ICD-10 codes beside highlighted excerpts, and dispatch FHIR/HL7 orders.",
+        "Click '+ Seed Synthetic Cases' to load cases across Contact Pending, Appointment Scheduled, Exams Ordered, and Patient Completed, switch to the Visits Calendar, and dispatch FHIR/HL7 orders.",
     },
     {
       title: "4. Admin Configuration & PDF Engine",
-      subtitle: "Component 8 · 54-Rule JsonLogic Editor, Analytics & Headless Chromium PDFs",
+      subtitle: "Component 8 · 54-Rule JsonLogic Editor, Analytics & Branded PDFs",
       href: urls.adminPortal,
       icon: SlidersHorizontal,
       steps:
-        "Edit thresholds in /rules with live Synthetic Dry-Run, bump version snapshots, view /analytics, and download Prior-Auth Packet PDFs.",
+        "Edit thresholds in /rules with live Synthetic Dry-Run, bump version snapshots, view /analytics, and download RadManagement-branded PDF reports.",
     },
   ];
 
   return (
     <div className="space-y-5">
+      <div className="rounded-2xl overflow-hidden border border-border shadow-sm bg-[#0b2545]">
+        <img
+          src="/brand/radmanagement-banner-dark.png"
+          alt="RadManagement LLC — Elevating Radiology Operations & Clinical Imaging Workflow"
+          className="w-full h-36 sm:h-44 object-cover object-left"
+        />
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight">
-              Enterprise Platform Demo Launcher
+            <h1 className="text-xl font-bold tracking-tight text-[#0b2545]">
+              RadManagement LLC &mdash; Platform Demo Hub
             </h1>
             <Badge variant="high">Synthetic Data Only</Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Launch all 4 clinical portals from one hub and reset synthetic patient data cleanly
-            between walkthroughs.
+            Launch all 4 clinical imaging portals from one hub and reset synthetic patient data
+            cleanly between walkthroughs.
           </p>
         </div>
 

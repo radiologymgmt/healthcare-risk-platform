@@ -90,6 +90,13 @@ export function MagicLinkReview({ token }: { token: string }) {
   }
 
   function formatDisplayValue(item: PrepopulatedItem, value: unknown): string {
+    if (item.question_key === "height_cm" && typeof value === "number" && value > 0) {
+      const totalIn = Math.round(value / 2.54);
+      return `${Math.floor(totalIn / 12)}' ${totalIn % 12}"`;
+    }
+    if (item.question_key === "weight_kg" && typeof value === "number" && value > 0) {
+      return `${Math.round(value / 0.45359237)} lbs`;
+    }
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (item.input_type === "select" && Array.isArray(item.options_json)) {
       const match = item.options_json.find((o) => o.value === value);
@@ -134,21 +141,19 @@ export function MagicLinkReview({ token }: { token: string }) {
 
   return (
     <div className="min-h-screen mx-auto max-w-md px-4 py-6 flex flex-col gap-5">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-xl bg-[var(--teal)] text-white flex items-center justify-center">
-            <Lock className="h-4 w-4" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold leading-none">Clinical Risk Review</p>
-            <p className="text-[11px] text-[var(--muted)] mt-0.5">
-              Single-Use Protected Link
-            </p>
-          </div>
-        </div>
-        {stage === "REVIEW" && (
-          <span className="text-xs font-mono font-medium bg-[var(--teal-soft)] text-teal-900 px-2.5 py-1 rounded-full">
+      <header className="flex items-center justify-between gap-2 pb-2 border-b border-[var(--border)]">
+        <img
+          src="/brand/radmanagement-logo-light.png"
+          alt="RadManagement LLC"
+          className="h-8 w-auto object-contain"
+        />
+        {stage === "REVIEW" ? (
+          <span className="text-xs font-mono font-semibold bg-[var(--teal-soft)] text-[var(--navy)] px-2.5 py-1 rounded-full shrink-0">
             {reviewedCount}/{items.length} reviewed
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--teal-dark)]">
+            <Lock className="h-3 w-3" /> Private Link
           </span>
         )}
       </header>

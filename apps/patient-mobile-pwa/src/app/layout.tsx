@@ -2,13 +2,17 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mobile Risk Review | Clinical Risk Platform",
-  description: "Secure magic-link verification and AI pre-populated clinical answer review.",
+  title: "RadManagement LLC | Mobile Preventive Health Review",
+  description:
+    "Secure magic-link verification and plain-English preventive imaging review from RadManagement LLC.",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/brand/radmanagement-mark.png",
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0d7377",
+  themeColor: "#0b2545",
   width: "device-width",
   initialScale: 1,
 };

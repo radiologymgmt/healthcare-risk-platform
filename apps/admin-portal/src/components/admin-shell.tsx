@@ -93,21 +93,15 @@ export function AdminShell({
         </div>
       )}
 
-      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between px-5">
+      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur-sm shadow-xs">
+        <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-5">
           <div className="flex items-center gap-6">
-            <Link href="/rules" className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs">
-                <ShieldCheck className="h-4 w-4" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold tracking-tight leading-none">
-                  Clinical Configuration Portal
-                </span>
-                <span className="text-[11px] text-muted-foreground mt-0.5">
-                  No-Code Rules &amp; Question Governance
-                </span>
-              </div>
+            <Link href="/demo" className="flex items-center gap-3 shrink-0">
+              <img
+                src="/brand/radmanagement-logo-light.png"
+                alt="RadManagement LLC — Clinical Imaging & Radiology Solutions"
+                className="h-10 w-auto object-contain"
+              />
             </Link>
 
             <nav aria-label="Admin Portal sections" className="flex items-center gap-1">

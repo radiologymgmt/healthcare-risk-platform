@@ -95,7 +95,7 @@ describe("@healthcare/shared-contracts", () => {
   });
 
   it("maps acuity levels to workqueue priority correctly", () => {
-    expect(acuityToWorkqueuePriority("ACUTE_RED_FLAG")).toBe("STAT");
+    expect(acuityToWorkqueuePriority("ACUTE_RED_FLAG")).toBe("HIGH");
     expect(acuityToWorkqueuePriority("HIGH_RISK")).toBe("HIGH");
     expect(acuityToWorkqueuePriority("MODERATE_RISK")).toBe("STANDARD");
     expect(acuityToWorkqueuePriority("ROUTINE")).toBe("STANDARD");

@@ -117,51 +117,72 @@ export async function renderHtmlToPdf(
   }
 }
 
+let cachedBrandLogoDataUri: string | null | undefined;
+function getBrandLogoDataUri(): string | null {
+  if (cachedBrandLogoDataUri !== undefined) return cachedBrandLogoDataUri;
+  const candidates = [
+    path.resolve(process.cwd(), "services/rules-engine-api/assets/brand/radmanagement-logo-light.png"),
+    path.resolve(process.cwd(), "assets/brand/radmanagement-logo-light.png"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      const b64 = fs.readFileSync(p).toString("base64");
+      cachedBrandLogoDataUri = `data:image/png;base64,${b64}`;
+      return cachedBrandLogoDataUri;
+    }
+  }
+  cachedBrandLogoDataUri = null;
+  return null;
+}
+
 export function wrapBrandedClinicalHtml(title: string, subtitle: string, bodyHtml: string): string {
+  const logoUri = getBrandLogoDataUri();
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(title)}</title>
+  <title>${escapeHtml(title)} — RadManagement LLC</title>
   <style>
     @page { size: letter; margin: 0.6in; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; line-height: 1.45; font-size: 11px; margin: 0; }
-    .header { border-bottom: 2px solid #0d7377; padding-bottom: 12px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: flex-end; }
-    .brand { font-size: 16px; font-weight: 700; color: #0d7377; letter-spacing: -0.01em; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0B2545; line-height: 1.45; font-size: 11px; margin: 0; }
+    .header { border-bottom: 2.5px solid #0B2545; padding-bottom: 12px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .brand-logo { height: 42px; width: auto; display: block; margin-bottom: 4px; }
+    .brand { font-size: 15px; font-weight: 800; color: #0B2545; letter-spacing: 0.01em; }
+    .brand span { color: #1F9FB3; }
     .subtitle { font-size: 11px; color: #475569; margin-top: 2px; }
     .meta { text-align: right; font-size: 10px; color: #64748b; }
-    h2 { font-size: 13px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin: 16px 0 8px; }
+    h2 { font-size: 13px; color: #0B2545; border-bottom: 1px solid #d5e4ec; padding-bottom: 4px; margin: 16px 0 8px; }
     table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-    th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; vertical-align: top; }
-    th { background: #f8fafc; font-weight: 600; font-size: 10px; text-transform: uppercase; color: #475569; }
+    th, td { border: 1px solid #d5e4ec; padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #f2f7fa; font-weight: 600; font-size: 10px; text-transform: uppercase; color: #0B2545; }
     .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 600; font-family: monospace; }
     .acute { background: #ffe4e6; color: #9f1239; }
     .high { background: #fef3c7; color: #92400e; }
     .moderate { background: #e0f2fe; color: #075985; }
     .routine { background: #f1f5f9; color: #334155; }
-    .card { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; background: #ffffff; }
+    .card { border: 1px solid #d5e4ec; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; background: #ffffff; }
     .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
-    .kpi { border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; background: #f8fafc; }
-    .kpi-val { font-size: 18px; font-weight: 700; color: #0d7377; }
-    .kpi-label { font-size: 9px; text-transform: uppercase; color: #64748b; }
-    .footer { margin-top: 22px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; }
+    .kpi { border: 1px solid #d5e4ec; border-radius: 6px; padding: 8px 10px; background: #f5f9fb; }
+    .kpi-val { font-size: 18px; font-weight: 700; color: #1F9FB3; }
+    .kpi-label { font-size: 9px; text-transform: uppercase; color: #475569; }
+    .footer { margin-top: 22px; padding-top: 8px; border-top: 1px solid #d5e4ec; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; }
   </style>
 </head>
 <body>
   <div class="header">
     <div>
-      <div class="brand">Enterprise Healthcare Risk Assessment Platform</div>
+      ${logoUri ? `<img class="brand-logo" src="${logoUri}" alt="RadManagement LLC" />` : `<div class="brand">RADMANAGEMENT <span>LLC</span></div>`}
       <div class="subtitle">${escapeHtml(title)} &mdash; ${escapeHtml(subtitle)}</div>
     </div>
     <div class="meta">
       Generated: ${escapeHtml(new Date().toISOString().slice(0, 19).replace("T", " "))} UTC<br/>
-      HIPAA-Protected Clinical Document
+      RadManagement LLC &middot; Clinical Imaging &amp; Radiology Solutions
     </div>
   </div>
   ${bodyHtml}
   <div class="footer">
-    <span>Confidential &mdash; Clinical Decision Support &amp; Prior-Authorization Documentation</span>
-    <span>Generated via Headless PDF Engine (Component 8)</span>
+    <span>Confidential &mdash; RadManagement LLC Clinical Decision Support &amp; Prior-Authorization</span>
+    <span>HIPAA-Protected Document</span>
   </div>
 </body>
 </html>`;

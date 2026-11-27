@@ -163,7 +163,7 @@ export function AnalyticsAndPdf() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>STAT Acute Flags</CardDescription>
+            <CardDescription>High-Priority Cases</CardDescription>
             <CardTitle className="text-2xl font-mono text-rose-700">
               {data?.kpis.stat_triage_count ?? 0}
             </CardTitle>

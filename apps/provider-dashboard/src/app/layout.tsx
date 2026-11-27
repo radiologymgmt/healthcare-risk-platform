@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Provider Triage Workqueue | Enterprise Healthcare Risk Platform",
+  title: "RadManagement LLC | Provider Clinical Workqueue & Visits Calendar",
   description:
-    "STAT-first clinical risk workqueue with split-screen CPT/ICD-10 pathway verification, parsed document excerpts, and one-click order dispatch.",
+    "RadManagement LLC clinical imaging workqueue with HIGH/STANDARD priority triage, workflow status tracking, patient visits calendar, and one-click FHIR/HL7 order dispatch.",
+  icons: {
+    icon: "/brand/radmanagement-mark.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

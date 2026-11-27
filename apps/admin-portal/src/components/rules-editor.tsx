@@ -869,7 +869,7 @@ export function RulesEditor() {
                         value={acuityLevel}
                         onChange={(e) => setAcuityLevel(e.target.value as AcuityLevel)}
                       >
-                        <option value="ACUTE_RED_FLAG">ACUTE_RED_FLAG (STAT)</option>
+                        <option value="ACUTE_RED_FLAG">ACUTE_RED_FLAG (HIGH Priority)</option>
                         <option value="HIGH_RISK">HIGH_RISK (HIGH)</option>
                         <option value="MODERATE_RISK">MODERATE_RISK (STANDARD)</option>
                         <option value="ROUTINE">ROUTINE (STANDARD)</option>

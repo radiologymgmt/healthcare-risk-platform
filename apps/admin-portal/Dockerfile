@@ -30,6 +30,7 @@ ENV PORT=8080
 
 COPY --from=builder --chown=node:node /app/apps/admin-portal/.next/standalone ./
 COPY --from=builder --chown=node:node /app/apps/admin-portal/.next/static ./apps/admin-portal/.next/static
+COPY --from=builder --chown=node:node /app/apps/admin-portal/public ./apps/admin-portal/public
 
 USER node
 EXPOSE 8080

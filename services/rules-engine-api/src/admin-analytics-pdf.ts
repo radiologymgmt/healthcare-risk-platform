@@ -46,8 +46,8 @@ export async function collectExecutiveAnalytics(pool: Pool) {
       SELECT
         (SELECT COUNT(*) FROM assessment_sessions) AS total_sessions,
         (SELECT COUNT(*) FROM triggered_pathways) AS total_triggered,
-        (SELECT COUNT(*) FROM workqueue_items WHERE status <> 'COMPLETED') AS open_workqueue,
-        (SELECT COUNT(*) FROM workqueue_items WHERE priority = 'STAT') AS stat_count,
+        (SELECT COUNT(*) FROM workqueue_items WHERE status NOT IN ('COMPLETED', 'PATIENT_COMPLETED')) AS open_workqueue,
+        (SELECT COUNT(*) FROM workqueue_items WHERE priority IN ('HIGH', 'STAT')) AS stat_count,
         (SELECT COUNT(*) FROM triggered_pathways WHERE clinician_disposition IN ('APPROVED', 'ORDERED')) AS orders_approved
     `),
     pool.query<{ specialty: string; triggered_count: string; ordered_count: string }>(`
@@ -226,7 +226,7 @@ export function registerAdminAnalyticsAndPdfRoutes(
             <div class="kpi-grid">
               <div class="kpi"><div class="kpi-val">${analytics.kpis.total_sessions}</div><div class="kpi-label">Assessment Sessions</div></div>
               <div class="kpi"><div class="kpi-val">${analytics.kpis.total_triggered_pathways}</div><div class="kpi-label">Triggered Pathways</div></div>
-              <div class="kpi"><div class="kpi-val">${analytics.kpis.stat_triage_count}</div><div class="kpi-label">STAT Acute Flags</div></div>
+              <div class="kpi"><div class="kpi-val">${analytics.kpis.stat_triage_count}</div><div class="kpi-label">High-Priority Cases</div></div>
               <div class="kpi"><div class="kpi-val">${analytics.kpis.orders_approved_count}</div><div class="kpi-label">Orders Approved</div></div>
             </div>
             <h2>Triggered Pathways by Clinical Specialty</h2>

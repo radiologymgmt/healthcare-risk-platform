@@ -50,3 +50,4 @@ async function proxyProviderApi(
 
 export const GET = proxyProviderApi;
 export const POST = proxyProviderApi;
+export const PATCH = proxyProviderApi;

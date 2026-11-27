@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Preventive Health Risk Assessment | Patient Portal",
+  title: "RadManagement LLC | Preventive Health & Imaging Risk Assessment",
   description:
-    "HIPAA-compliant preventive clinical risk assessment, real-time insurance eligibility verification, and risk review scheduling.",
+    "Personalized preventive imaging risk assessment from RadManagement LLC — plain-English guidance, real-time benefits check, and compassionate care scheduling.",
+  icons: {
+    icon: "/brand/radmanagement-mark.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -86,7 +86,7 @@ describe("Component 3 & 4 API Integration Tests (Stedi Eligibility, Scheduling, 
       "SELECT status FROM workqueue_items WHERE id = $1",
       [evalRes.body.workqueue_item_id],
     );
-    expect(wq.rows[0]!.status).toBe("SCHEDULED");
+    expect(wq.rows[0]!.status).toBe("APPOINTMENT_SCHEDULED");
   });
 
   it("enforces tokenized magic-link DOB + ZIP verification, AI Review & Confirm provenance, and single-use invalidation", async () => {
