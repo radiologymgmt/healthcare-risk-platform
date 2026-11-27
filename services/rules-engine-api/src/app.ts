@@ -12,6 +12,7 @@ import {
 import { evaluateClinicalRules, type ClinicalRuleRecord } from "./evaluator.js";
 import { writeAuditLog } from "./audit.js";
 import { createAdminRouter } from "./admin-routes.js";
+import { createPatientAndMagicLinkRouter } from "./patient-routes.js";
 
 const UuidParamSchema = z.string().uuid();
 
@@ -507,6 +508,9 @@ export function createApp(
       }
     },
   );
+
+  // Mount Component 3 & 4 Patient Portal & Magic-Link APIs
+  app.use("/api/v1", createPatientAndMagicLinkRouter(pool, logger));
 
   // Mount RBAC-protected Admin Portal CRUD API (/api/v1/admin/questions, /api/v1/admin/rules)
   app.use("/api/v1/admin", createAdminRouter(pool, logger));

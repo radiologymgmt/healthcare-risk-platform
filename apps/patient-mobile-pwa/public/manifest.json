@@ -1,0 +1,9 @@
+{
+  "name": "Clinical Risk Review",
+  "short_name": "Risk Review",
+  "description": "HIPAA-protected mobile review and confirmation of pre-populated clinical risk answers.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f8f8",
+  "theme_color": "#0d7377"
+}

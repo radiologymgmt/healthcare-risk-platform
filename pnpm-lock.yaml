@@ -255,6 +255,98 @@ importers:
         specifier: ^3.0.8
         version: 3.2.7(@types/node@22.20.7)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
 
+  apps/patient-mobile-pwa:
+    dependencies:
+      '@healthcare/shared-contracts':
+        specifier: workspace:*
+        version: link:../../packages/shared-contracts
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      lucide-react:
+        specifier: ^0.483.0
+        version: 0.483.0(react@19.3.1)
+      next:
+        specifier: ^15.2.4
+        version: 15.5.29(@types/node@22.20.7)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      react:
+        specifier: ^19.0.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.3.1(react@19.3.1)
+      tailwind-merge:
+        specifier: ^3.0.2
+        version: 3.7.1
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.0.14
+        version: 4.3.5
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.7
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.3.3
+      '@types/react-dom':
+        specifier: ^19.0.4
+        version: 19.3.0(@types/react@19.3.3)
+      tailwindcss:
+        specifier: ^4.0.14
+        version: 4.3.5
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.8
+        version: 3.2.7(@types/node@22.20.7)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+
+  apps/patient-web:
+    dependencies:
+      '@healthcare/shared-contracts':
+        specifier: workspace:*
+        version: link:../../packages/shared-contracts
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      lucide-react:
+        specifier: ^0.483.0
+        version: 0.483.0(react@19.3.1)
+      next:
+        specifier: ^15.2.4
+        version: 15.5.29(@types/node@22.20.7)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      react:
+        specifier: ^19.0.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.3.1(react@19.3.1)
+      tailwind-merge:
+        specifier: ^3.0.2
+        version: 3.7.1
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.0.14
+        version: 4.3.5
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.7
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.3.3
+      '@types/react-dom':
+        specifier: ^19.0.4
+        version: 19.3.0(@types/react@19.3.3)
+      tailwindcss:
+        specifier: ^4.0.14
+        version: 4.3.5
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.8
+        version: 3.2.7(@types/node@22.20.7)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)
+
   packages/database:
     dependencies:
       '@healthcare/shared-contracts':

@@ -16,6 +16,8 @@
     "dev:rules-api": "pnpm --filter @healthcare/rules-engine-api dev",
     "dev:interop": "pnpm --filter @healthcare/interop-ingestion-worker dev",
     "dev:admin": "pnpm --filter @healthcare/admin-portal dev",
+    "dev:patient-web": "pnpm --filter @healthcare/patient-web dev",
+    "dev:mobile-pwa": "pnpm --filter @healthcare/patient-mobile-pwa dev",
     "test:python": "pytest services/clinical-parser-worker/tests -v && ruff check services/clinical-parser-worker/app services/clinical-parser-worker/tests"
   },
   "devDependencies": {
