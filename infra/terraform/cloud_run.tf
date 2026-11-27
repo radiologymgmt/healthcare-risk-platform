@@ -126,11 +126,11 @@ resource "google_cloud_run_v2_service" "clinical_parser" {
       }
       env {
         name  = "VERTEX_AI_LOCATION"
-        value = var.region
+        value = "global"
       }
       env {
         name  = "VERTEX_AI_MODEL"
-        value = "gemini-2.5-flash"
+        value = "gemini-3-flash-preview"
       }
       env {
         name  = "USE_VERTEX_AI"
