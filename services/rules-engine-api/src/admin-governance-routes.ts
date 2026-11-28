@@ -343,6 +343,62 @@ export function registerAdminGovernanceRoutes(
     }
   });
 
+  router.delete("/users/:id", async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const idCheck = UuidSchema.safeParse(req.params.id);
+      if (!idCheck.success) {
+        res.status(400).json({ error: "Invalid user UUID" });
+        return;
+      }
+
+      const targetRes = await pool.query<{
+        email: string;
+        role: string;
+        is_active: boolean;
+        is_hardcoded_admin: boolean;
+      }>(
+        "SELECT email, role, is_active, is_hardcoded_admin FROM users WHERE id = $1",
+        [idCheck.data],
+      );
+      const target = targetRes.rows[0];
+      if (!target) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      if (target.is_hardcoded_admin || target.email.toLowerCase() === HARDCODED_SUPER_ADMIN_EMAIL) {
+        res.status(403).json({
+          error: "Hardcoded Super-Admin account cannot be deleted.",
+        });
+        return;
+      }
+
+      if (target.role === "ADMIN" && target.is_active) {
+        const activeAdmins = await pool.query<{ count: string }>(
+          "SELECT COUNT(*)::text AS count FROM users WHERE role = 'ADMIN' AND is_active = TRUE",
+        );
+        if (Number(activeAdmins.rows[0]?.count ?? 0) <= 1) {
+          res.status(409).json({ error: "Cannot delete the last active ADMIN account." });
+          return;
+        }
+      }
+
+      await pool.query("DELETE FROM users WHERE id = $1", [idCheck.data]);
+      await writeAuditLog(pool, {
+        actor_id: req.actor!.actor_id,
+        actor_role: req.actor!.actor_role,
+        action: "DELETE_USER",
+        resource_type: "user",
+        resource_id: idCheck.data,
+        ip_address: extractIp(req),
+        metadata: { deleted_role: target.role },
+      });
+      res.json({ ok: true, id: idCheck.data });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // GET /api/v1/admin/agreements — Signed Pre-Demo Agreements Ledger
   router.get("/agreements", async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {

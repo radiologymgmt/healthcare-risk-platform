@@ -14,7 +14,6 @@ import {
 import {
   CONTRACT_GOVERNING_STATE,
   DEMO_AGREEMENT_VERSION,
-  HARDCODED_SUPER_ADMIN_EMAIL,
   PRE_DEMO_CONTRACTS,
   PRE_PRODUCTION_CONTRACTS,
   type DemoSessionPayload,
@@ -62,10 +61,9 @@ function ContractViewer({ contract }: { contract: LegalContractDocument }) {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
-  google_not_configured:
-    "Google OAuth Client ID & Secret have not been attached to this Cloud Run service yet. See the 3-step setup instructions below or sign in with your password.",
+  google_not_configured: "Google Sign-In is temporarily unavailable. Please sign in with your email and password.",
   google_state_mismatch: "Google Sign-In session expired. Please try signing in again.",
-  google_token_exchange_failed: "Google Sign-In token exchange failed. Please verify the OAuth redirect URI.",
+  google_token_exchange_failed: "Unable to complete Google Sign-In. Please try again.",
   google_identity_unverified: "Your Google account email must be verified to sign in.",
   google_account_not_authorized:
     "This Google account is not authorized to view the demo. Contact RadManagement LLC to request access.",
@@ -76,12 +74,10 @@ function DemoGateInner() {
   const router = useRouter();
   const params = useSearchParams();
   const nextTarget = params.get("next") || "/demo";
-  const googleSetupHint = params.get("google_setup") === "1";
   const urlError = params.get("error");
 
   const [loadingSession, setLoadingSession] = useState(true);
   const [session, setSession] = useState<DemoSessionPayload | null>(null);
-  const [googleConfigured, setGoogleConfigured] = useState(false);
 
   // Login Form
   const [email, setEmail] = useState("");
@@ -120,9 +116,7 @@ function DemoGateInner() {
         const data = (await res.json()) as {
           authenticated: boolean;
           session: DemoSessionPayload | null;
-          googleOAuthConfigured: boolean;
         };
-        setGoogleConfigured(Boolean(data.googleOAuthConfigured));
         if (data.authenticated && data.session) {
           setSession(data.session);
           setSignerName(data.session.fullName || "");
@@ -517,9 +511,8 @@ function DemoGateInner() {
               Sign In to RadManagement LLC Demo Hub
             </CardTitle>
             <CardDescription className="text-xs leading-relaxed">
-              Platform Owner (<code>{HARDCODED_SUPER_ADMIN_EMAIL}</code>) signs in with Google with
-              instant access (no agreements required). Invited evaluators sign in with their issued
-              email &amp; password and complete the New York Pre-Demo NDA &amp; Sandbox Agreement.
+              Sign in with your authorized account to access the Enterprise Healthcare Risk
+              Assessment Platform demonstration.
             </CardDescription>
           </CardHeader>
 
@@ -530,11 +523,7 @@ function DemoGateInner() {
               </div>
             )}
 
-            {/* Google Sign-In for Hardcoded Super-Admin */}
             <div className="space-y-2.5">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#127080]">
-                Platform Owner / Hardcoded Admin
-              </p>
               <a
                 id="google-signin-btn"
                 href={`/api/auth/google/start?next=${encodeURIComponent(nextTarget)}`}
@@ -558,31 +547,14 @@ function DemoGateInner() {
                     d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"
                   />
                 </svg>
-                <span>Sign in with Google ({HARDCODED_SUPER_ADMIN_EMAIL})</span>
+                <span>Sign in with Google</span>
               </a>
-
-              {(googleSetupHint || !googleConfigured) && (
-                <div className="rounded-lg border border-sky-200 bg-sky-50/80 p-3 text-[11px] text-sky-950 space-y-1">
-                  <p className="font-bold">Google OAuth Client Setup (One-Time in GCP Console):</p>
-                  <p>
-                    Create a Web OAuth Client ID in GCP Console →{" "}
-                    <strong>APIs &amp; Services → Credentials</strong> with Redirect URI{" "}
-                    <code className="font-mono bg-white px-1 py-0.5 rounded border">
-                      https://admin.demo.risk.radmgmt.org/api/auth/google/callback
-                    </code>{" "}
-                    and attach <code>GOOGLE_OAUTH_CLIENT_ID</code> &amp;{" "}
-                    <code>GOOGLE_OAUTH_CLIENT_SECRET</code>. Until then,{" "}
-                    <code>{HARDCODED_SUPER_ADMIN_EMAIL}</code> can also sign in below with the
-                    bootstrap password.
-                  </p>
-                </div>
-              )}
             </div>
 
             <div className="relative flex items-center py-1">
               <div className="flex-grow border-t border-border" />
               <span className="mx-3 shrink text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Or Invited Evaluator / User Login
+                Or Sign In with Email &amp; Password
               </span>
               <div className="flex-grow border-t border-border" />
             </div>

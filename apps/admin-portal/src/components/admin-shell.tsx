@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   BookOpen,
   LogOut,
+  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -82,6 +83,12 @@ export function AdminShell({
       : []),
     ...(isAdmin
       ? [
+          {
+            href: "/users",
+            label: "Users & Access",
+            icon: Users,
+            active: pathname.startsWith("/users"),
+          },
           {
             href: "/rules",
             label: "Clinical Rules",

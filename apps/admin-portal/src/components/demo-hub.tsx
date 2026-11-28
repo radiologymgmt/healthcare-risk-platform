@@ -11,6 +11,7 @@ import {
   SlidersHorizontal,
   Smartphone,
   Stethoscope,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -165,6 +166,37 @@ export function DemoHub({ urls, isAdmin = true }: DemoHubProps) {
           );
         })}
       </div>
+
+      {isAdmin && (
+        <Card className="border-[#0b2545]/30 bg-white">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-[#127080] text-white flex items-center justify-center shrink-0">
+                  <Users className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-sm text-[#0b2545]">
+                    User Creation, Passwords &amp; Signed Agreements
+                  </CardTitle>
+                  <CardDescription className="mt-0.5 text-xs">
+                    Create demo viewer or staff accounts with passwords, reset or suspend access,
+                    and view every electronically signed New York Pre-Demo agreement.
+                  </CardDescription>
+                </div>
+              </div>
+              <Link
+                id="demo-hub-manage-users-link"
+                href="/users"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#127080] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0e5a67] transition-colors shrink-0"
+              >
+                <Users className="h-3.5 w-3.5" />
+                Manage Users &amp; Access
+              </Link>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
 
       <Card className="border-[#127080]/40 bg-[#e4f4f7]/45">
         <CardHeader className="pb-3">
