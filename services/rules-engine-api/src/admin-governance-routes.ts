@@ -2,25 +2,34 @@ import type { NextFunction, Response, Router } from "express";
 import type { Pool } from "pg";
 import { z } from "zod";
 import jsonLogic from "json-logic-js";
-import type { HipaaLogger } from "@healthcare/shared-contracts";
+import { HARDCODED_SUPER_ADMIN_EMAIL, type HipaaLogger } from "@healthcare/shared-contracts";
 import { writeAuditLog } from "./audit.js";
+import { hashPassword } from "./password-hash.js";
 import type { AuthenticatedRequest } from "./rbac.js";
 
 const UuidSchema = z.string().uuid();
 
+const UserRoleEnum = z.enum(["VIEWER", "ADMIN", "PROVIDER", "COORDINATOR", "AUDITOR"]);
+
 const CreateUserSchema = z.object({
   email: z.string().email().max(255),
   full_name: z.string().min(2).max(200),
-  role: z.enum(["ADMIN", "PROVIDER", "COORDINATOR", "AUDITOR"]),
+  role: UserRoleEnum.default("VIEWER"),
+  password: z.string().min(8, "Password must be at least 8 characters").max(128).optional(),
+  organization: z.string().max(200).nullable().optional(),
   npi_number: z.string().max(20).nullable().optional(),
   specialty: z.string().max(120).nullable().optional(),
+  requires_demo_agreement: z.boolean().optional(),
 });
 
 const UpdateUserSchema = z.object({
   full_name: z.string().min(2).max(200).optional(),
-  role: z.enum(["ADMIN", "PROVIDER", "COORDINATOR", "AUDITOR"]).optional(),
+  role: UserRoleEnum.optional(),
+  password: z.string().min(8, "Password must be at least 8 characters").max(128).optional(),
+  organization: z.string().max(200).nullable().optional(),
   npi_number: z.string().max(20).nullable().optional(),
   specialty: z.string().max(120).nullable().optional(),
+  requires_demo_agreement: z.boolean().optional(),
   is_active: z.boolean().optional(),
 });
 
@@ -114,7 +123,8 @@ function countDiffs(
 
 /**
  * Registers Enterprise Admin Governance routes onto the RBAC-protected Admin Router:
- * - /users (User creation & RBAC directory)
+ * - /users (User creation with passwords, VIEWER demo access & hardcoded Super-Admin protection)
+ * - /agreements (Signed Pre-Demo MNDA & Sandbox Agreement audit ledger)
  * - /payers (Organization accepted payers & Stedi coverage rules)
  * - /settings (No-code & sandboxed light-code DB-backed platform settings)
  * - /snapshots (In-app database configuration restore points & atomic rollback)
@@ -125,15 +135,37 @@ export function registerAdminGovernanceRoutes(
   logger: HipaaLogger,
 ): void {
   // =========================================================================
-  // 1. USER CREATION & RBAC DIRECTORY (/api/v1/admin/users)
+  // 1. USER CREATION, DEMO ACCESS & RBAC DIRECTORY (/api/v1/admin/users)
   // =========================================================================
   router.get("/users", async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const result = await pool.query(
         `
-        SELECT id, email, full_name, role, npi_number, specialty, is_active, created_by, created_at, updated_at
-        FROM users
-        ORDER BY is_active DESC, role ASC, full_name ASC
+        SELECT
+          u.id,
+          u.email,
+          u.full_name,
+          u.role,
+          u.organization,
+          u.npi_number,
+          u.specialty,
+          u.is_active,
+          u.is_hardcoded_admin,
+          u.requires_demo_agreement,
+          (u.password_hash IS NOT NULL) AS has_password,
+          u.last_login_at,
+          u.created_by,
+          u.created_at,
+          u.updated_at,
+          (
+            SELECT da.signed_at
+            FROM demo_agreements da
+            WHERE LOWER(da.email) = LOWER(u.email)
+            ORDER BY da.signed_at DESC
+            LIMIT 1
+          ) AS agreement_signed_at
+        FROM users u
+        ORDER BY u.is_hardcoded_admin DESC, u.is_active DESC, u.role ASC, u.full_name ASC
         `,
       );
       res.json({ users: result.rows });
@@ -150,18 +182,32 @@ export function registerAdminGovernanceRoutes(
         return;
       }
       const d = parsed.data;
+      const normalizedEmail = d.email.toLowerCase().trim();
+      const passwordHash = d.password ? hashPassword(d.password) : null;
+      const isSuperAdmin = normalizedEmail === HARDCODED_SUPER_ADMIN_EMAIL;
+
       const inserted = await pool.query(
         `
-        INSERT INTO users (email, full_name, role, npi_number, specialty, is_active, created_by)
-        VALUES ($1, $2, $3, $4, $5, TRUE, $6)
-        RETURNING id, email, full_name, role, npi_number, specialty, is_active, created_by, created_at, updated_at
+        INSERT INTO users (
+          email, full_name, role, organization, npi_number, specialty,
+          password_hash, is_active, is_hardcoded_admin, requires_demo_agreement, created_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $9, $10)
+        RETURNING id, email, full_name, role, organization, npi_number, specialty,
+                  is_active, is_hardcoded_admin, requires_demo_agreement,
+                  (password_hash IS NOT NULL) AS has_password,
+                  last_login_at, created_by, created_at, updated_at
         `,
         [
-          d.email.toLowerCase().trim(),
+          normalizedEmail,
           d.full_name.trim(),
-          d.role,
+          isSuperAdmin ? "ADMIN" : d.role,
+          d.organization?.trim() || null,
           d.npi_number?.trim() || null,
           d.specialty?.trim() || null,
+          passwordHash,
+          isSuperAdmin,
+          isSuperAdmin ? false : (d.requires_demo_agreement ?? true),
           req.actor!.actor_id,
         ],
       );
@@ -173,9 +219,9 @@ export function registerAdminGovernanceRoutes(
         resource_type: "user",
         resource_id: user.id as string,
         ip_address: extractIp(req),
-        metadata: { role: d.role },
+        metadata: { role: user.role, has_password: Boolean(passwordHash) },
       });
-      logger.info("Admin created RBAC user", { user_id: user.id, role: d.role });
+      logger.info("Admin created RBAC/Demo user", { user_id: user.id, role: user.role });
       res.status(201).json({ user });
     } catch (err: unknown) {
       const pgErr = err as { code?: string };
@@ -201,13 +247,35 @@ export function registerAdminGovernanceRoutes(
       }
       const d = parsed.data;
 
+      const targetRes = await pool.query<{
+        email: string;
+        role: string;
+        is_active: boolean;
+        is_hardcoded_admin: boolean;
+      }>(
+        "SELECT email, role, is_active, is_hardcoded_admin FROM users WHERE id = $1",
+        [idCheck.data],
+      );
+      const target = targetRes.rows[0];
+      if (!target) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      // Hardcoded Super-Admin (radiologymgmt@gmail.com) cannot be deactivated, demoted, or forced to sign agreements
+      if (
+        (target.is_hardcoded_admin || target.email.toLowerCase() === HARDCODED_SUPER_ADMIN_EMAIL) &&
+        (d.is_active === false || (d.role && d.role !== "ADMIN") || d.requires_demo_agreement === true)
+      ) {
+        res.status(403).json({
+          error: "Hardcoded Super-Admin (radiologymgmt@gmail.com) cannot be deactivated, demoted, or required to sign demo agreements.",
+        });
+        return;
+      }
+
       // Prevent deactivating or demoting the last active ADMIN
       if (d.is_active === false || (d.role && d.role !== "ADMIN")) {
-        const targetRes = await pool.query<{ role: string; is_active: boolean }>(
-          "SELECT role, is_active FROM users WHERE id = $1",
-          [idCheck.data],
-        );
-        if (targetRes.rows[0]?.role === "ADMIN" && targetRes.rows[0]?.is_active) {
+        if (target.role === "ADMIN" && target.is_active) {
           const activeAdmins = await pool.query<{ count: string }>(
             "SELECT COUNT(*)::text AS count FROM users WHERE role = 'ADMIN' AND is_active = TRUE",
           );
@@ -220,34 +288,42 @@ export function registerAdminGovernanceRoutes(
         }
       }
 
+      const nextPasswordHash = d.password ? hashPassword(d.password) : null;
+
       const updated = await pool.query(
         `
         UPDATE users
         SET
           full_name = COALESCE($1, full_name),
           role = COALESCE($2, role),
-          npi_number = CASE WHEN $3::boolean THEN $4 ELSE npi_number END,
-          specialty = CASE WHEN $5::boolean THEN $6 ELSE specialty END,
-          is_active = COALESCE($7, is_active),
+          organization = CASE WHEN $3::boolean THEN $4 ELSE organization END,
+          npi_number = CASE WHEN $5::boolean THEN $6 ELSE npi_number END,
+          specialty = CASE WHEN $7::boolean THEN $8 ELSE specialty END,
+          password_hash = COALESCE($9, password_hash),
+          requires_demo_agreement = COALESCE($10, requires_demo_agreement),
+          is_active = COALESCE($11, is_active),
           updated_at = NOW()
-        WHERE id = $8
-        RETURNING id, email, full_name, role, npi_number, specialty, is_active, created_by, created_at, updated_at
+        WHERE id = $12
+        RETURNING id, email, full_name, role, organization, npi_number, specialty,
+                  is_active, is_hardcoded_admin, requires_demo_agreement,
+                  (password_hash IS NOT NULL) AS has_password,
+                  last_login_at, created_by, created_at, updated_at
         `,
         [
           d.full_name?.trim() ?? null,
           d.role ?? null,
+          d.organization !== undefined,
+          d.organization?.trim() || null,
           d.npi_number !== undefined,
           d.npi_number?.trim() || null,
           d.specialty !== undefined,
           d.specialty?.trim() || null,
+          nextPasswordHash,
+          d.requires_demo_agreement ?? null,
           d.is_active ?? null,
           idCheck.data,
         ],
       );
-      if (updated.rowCount === 0) {
-        res.status(404).json({ error: "User not found" });
-        return;
-      }
       await writeAuditLog(pool, {
         actor_id: req.actor!.actor_id,
         actor_role: req.actor!.actor_role,
@@ -255,9 +331,33 @@ export function registerAdminGovernanceRoutes(
         resource_type: "user",
         resource_id: idCheck.data,
         ip_address: extractIp(req),
-        metadata: { role: d.role, is_active: d.is_active },
+        metadata: {
+          role: d.role,
+          is_active: d.is_active,
+          password_updated: Boolean(nextPasswordHash),
+        },
       });
       res.json({ user: updated.rows[0] });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/v1/admin/agreements — Signed Pre-Demo Agreements Ledger
+  router.get("/agreements", async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await pool.query(
+        `
+        SELECT id, user_id, email, full_name, organization,
+               signed_date::text AS signed_date, agreement_version,
+               agreements_accepted, agreement_hash, ip_address::text AS ip_address,
+               signed_at
+        FROM demo_agreements
+        ORDER BY signed_at DESC
+        LIMIT 500
+        `,
+      );
+      res.json({ agreements: result.rows });
     } catch (err) {
       next(err);
     }

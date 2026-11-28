@@ -122,15 +122,54 @@ export async function seedDatabase(pool: Pool): Promise<SeedResult> {
       `SELECT to_regclass('public.users') IS NOT NULL AS exists`,
     );
     if (govTablesRes.rows[0]?.exists) {
+      const hasDemoColsRes = await client.query<{ exists: boolean }>(
+        `
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'is_hardcoded_admin'
+        ) AS exists
+        `,
+      );
+      const hasDemoCols = Boolean(hasDemoColsRes.rows[0]?.exists);
       for (const u of SEED_USERS) {
-        await client.query(
-          `
-          INSERT INTO users (email, full_name, role, npi_number, specialty, is_active, created_by)
-          VALUES ($1, $2, $3, $4, $5, TRUE, 'system-seed')
-          ON CONFLICT (email) DO NOTHING
-          `,
-          [u.email, u.full_name, u.role, u.npi_number, u.specialty],
-        );
+        if (hasDemoCols) {
+          await client.query(
+            `
+            INSERT INTO users (
+              email, full_name, role, npi_number, specialty, organization,
+              is_active, is_hardcoded_admin, requires_demo_agreement, created_by
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8, 'system-seed')
+            ON CONFLICT (email) DO UPDATE SET
+              role = CASE WHEN EXCLUDED.is_hardcoded_admin THEN 'ADMIN' ELSE users.role END,
+              is_active = CASE WHEN EXCLUDED.is_hardcoded_admin THEN TRUE ELSE users.is_active END,
+              is_hardcoded_admin = users.is_hardcoded_admin OR EXCLUDED.is_hardcoded_admin,
+              requires_demo_agreement = CASE
+                WHEN EXCLUDED.is_hardcoded_admin THEN FALSE
+                ELSE users.requires_demo_agreement
+              END
+            `,
+            [
+              u.email,
+              u.full_name,
+              u.role,
+              u.npi_number,
+              u.specialty,
+              u.organization ?? null,
+              Boolean(u.is_hardcoded_admin),
+              u.requires_demo_agreement ?? true,
+            ],
+          );
+        } else {
+          await client.query(
+            `
+            INSERT INTO users (email, full_name, role, npi_number, specialty, is_active, created_by)
+            VALUES ($1, $2, $3, $4, $5, TRUE, 'system-seed')
+            ON CONFLICT (email) DO NOTHING
+            `,
+            [u.email, u.full_name, u.role, u.npi_number, u.specialty],
+          );
+        }
       }
 
       for (const p of SEED_ACCEPTED_PAYERS) {

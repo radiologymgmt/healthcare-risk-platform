@@ -1,9 +1,12 @@
 export interface SeedUser {
   email: string;
   full_name: string;
-  role: "ADMIN" | "PROVIDER" | "COORDINATOR" | "AUDITOR";
+  role: "ADMIN" | "PROVIDER" | "COORDINATOR" | "AUDITOR" | "VIEWER";
   npi_number: string | null;
   specialty: string | null;
+  organization?: string | null;
+  is_hardcoded_admin?: boolean;
+  requires_demo_agreement?: boolean;
 }
 
 export interface SeedAcceptedPayer {
@@ -30,11 +33,24 @@ export interface SeedPlatformSetting {
 
 export const SEED_USERS: readonly SeedUser[] = [
   {
+    email: "radiologymgmt@gmail.com",
+    full_name: "RadManagement Super-Admin",
+    role: "ADMIN",
+    npi_number: null,
+    specialty: "Platform Owner & Clinical Administration",
+    organization: "RadManagement LLC",
+    is_hardcoded_admin: true,
+    requires_demo_agreement: false,
+  },
+  {
     email: "admin@radmgmt.org",
     full_name: "Clinical Platform Administrator",
     role: "ADMIN",
     npi_number: null,
     specialty: "Radiology Operations",
+    organization: "RadManagement LLC",
+    is_hardcoded_admin: false,
+    requires_demo_agreement: true,
   },
   {
     email: "elena.morales.md@radmgmt.org",

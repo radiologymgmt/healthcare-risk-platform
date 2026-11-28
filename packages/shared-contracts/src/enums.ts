@@ -148,6 +148,7 @@ export function normalizeWorkqueueStatus(raw: string | null | undefined): Workqu
 
 export const ActorRoleSchema = z.enum([
   "PATIENT",
+  "VIEWER",
   "PROVIDER",
   "COORDINATOR",
   "AUDITOR",

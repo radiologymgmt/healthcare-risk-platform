@@ -23,9 +23,10 @@ interface DemoHubProps {
     providerDashboard: string;
     adminPortal: string;
   };
+  isAdmin?: boolean;
 }
 
-export function DemoHub({ urls }: DemoHubProps) {
+export function DemoHub({ urls, isAdmin = true }: DemoHubProps) {
   const [resetting, setResetting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -70,14 +71,18 @@ export function DemoHub({ urls }: DemoHubProps) {
       steps:
         "Click '+ Seed Synthetic Cases' to load cases across Contact Pending, Appointment Scheduled, Exams Ordered, and Patient Completed, run any of 69 individual assessments, and download branded PDFs.",
     },
-    {
-      title: "4. Admin Configuration & Governance Studio",
-      subtitle: "Component 8 · 69-Rule JsonLogic Editor, Analytics, Governance & Restore Points",
-      href: urls.adminPortal,
-      icon: SlidersHorizontal,
-      steps:
-        "Edit thresholds in /rules with live Synthetic Dry-Run, manage users/payers/restore points in /governance, view /analytics, and download RadManagement-branded PDF reports.",
-    },
+    ...(isAdmin
+      ? [
+          {
+            title: "4. Admin Configuration & Governance Studio",
+            subtitle: "Component 8 · 69-Rule JsonLogic Editor, Analytics, Governance & Restore Points",
+            href: urls.adminPortal,
+            icon: SlidersHorizontal,
+            steps:
+              "Edit thresholds in /rules with live Synthetic Dry-Run, manage users/passwords/signed agreements/payers/restore points in /governance, view /analytics, and download RadManagement-branded PDF reports.",
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -99,21 +104,23 @@ export function DemoHub({ urls }: DemoHubProps) {
             <Badge variant="high">Synthetic Data Only</Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Launch all 4 clinical imaging portals from one hub and reset synthetic patient data
-            cleanly between walkthroughs.
+            Launch our clinical imaging portals from one hub to explore the patient, clinician, and
+            governance experience.
           </p>
         </div>
 
-        <Button
-          id="reset-demo-data-btn"
-          size="sm"
-          variant="outline"
-          disabled={resetting}
-          onClick={() => void handleResetDemo()}
-        >
-          <RotateCcw className={`h-3.5 w-3.5 ${resetting ? "animate-spin" : ""}`} />
-          {resetting ? "Resetting Demo Data..." : "Reset Synthetic Demo Data"}
-        </Button>
+        {isAdmin && (
+          <Button
+            id="reset-demo-data-btn"
+            size="sm"
+            variant="outline"
+            disabled={resetting}
+            onClick={() => void handleResetDemo()}
+          >
+            <RotateCcw className={`h-3.5 w-3.5 ${resetting ? "animate-spin" : ""}`} />
+            {resetting ? "Resetting Demo Data..." : "Reset Synthetic Demo Data"}
+          </Button>
+        )}
       </div>
 
       {statusMsg && (

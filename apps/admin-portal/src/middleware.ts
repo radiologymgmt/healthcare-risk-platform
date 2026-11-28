@@ -1,15 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  DEMO_SESSION_COOKIE_NAME,
+  resolveDemoSessionSecret,
+  verifyDemoSessionToken,
+} from "@healthcare/shared-contracts";
+import {
   DEV_ACTOR_COOKIE,
   DEV_ROLE_COOKIE,
   isAuthorizedForAdminPortal,
   resolvePortalIdentity,
 } from "./lib/rbac";
 
-const PUBLIC_PATHS = ["/unauthorized", "/demo-gate", "/api/auth/dev-session", "/api/auth/demo-gate"];
+const PUBLIC_PATHS = [
+  "/unauthorized",
+  "/demo-gate",
+  "/brand",
+  "/api/auth",
+];
+const VIEWER_ALLOWED_PATHS = ["/demo", "/docs"];
 const DEMO_ACCESS_COOKIE = "hrp_demo_access";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
@@ -21,9 +32,74 @@ export function middleware(request: NextRequest) {
   }
 
   const isDemoMode = process.env.DEMO_MODE === "true";
-  const requiredDemoCode = process.env.DEMO_ACCESS_CODE?.trim();
+  const demoAuthEnforced = process.env.DEMO_AUTH_ENFORCED === "true";
 
-  // Optional passcode gate when hosting a public demo site
+  // 1. Check signed cross-subdomain Demo Session cookie (Google Super-Admin or Admin-created User)
+  const demoSecret = resolveDemoSessionSecret(process.env);
+  const demoSession = await verifyDemoSessionToken(
+    request.cookies.get(DEMO_SESSION_COOKIE_NAME)?.value,
+    demoSecret,
+  );
+
+  if (isDemoMode && demoAuthEnforced) {
+    if (!demoSession || (!demoSession.isSuperAdmin && !demoSession.agreementSigned)) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { error: "Demo authentication and signed pre-demo agreement required." },
+          { status: 401 },
+        );
+      }
+      const gateUrl = request.nextUrl.clone();
+      gateUrl.pathname = "/demo-gate";
+      gateUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(gateUrl);
+    }
+
+    // Authenticated & signed Demo Session
+    const isViewerRoute = VIEWER_ALLOWED_PATHS.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`),
+    );
+
+    if (demoSession.role !== "ADMIN" && !demoSession.isSuperAdmin) {
+      if (!isViewerRoute) {
+        if (pathname.startsWith("/api/")) {
+          return NextResponse.json(
+            { error: "Forbidden: ADMIN role required for configuration endpoints." },
+            { status: 403 },
+          );
+        }
+        const demoUrl = request.nextUrl.clone();
+        demoUrl.pathname = "/demo";
+        return NextResponse.redirect(demoUrl);
+      }
+
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set("x-verified-actor-id", demoSession.email);
+      requestHeaders.set("x-verified-actor-role", demoSession.role);
+      requestHeaders.set(
+        "x-verified-auth-source",
+        demoSession.authMethod === "google" ? "GOOGLE_OAUTH" : "DEMO_USER",
+      );
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
+
+    // Authenticated ADMIN / Hardcoded Super-Admin (radiologymgmt@gmail.com)
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-verified-actor-id", demoSession.email);
+    requestHeaders.set("x-verified-actor-role", "ADMIN");
+    requestHeaders.set(
+      "x-verified-auth-source",
+      demoSession.isSuperAdmin
+        ? demoSession.authMethod === "google"
+          ? "GOOGLE_SUPER_ADMIN"
+          : "HARDCODED_ADMIN"
+        : "ADMIN_USER",
+    );
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // Legacy passcode gate when DEMO_ACCESS_CODE is explicitly set without DEMO_AUTH_ENFORCED
+  const requiredDemoCode = process.env.DEMO_ACCESS_CODE?.trim();
   if (isDemoMode && requiredDemoCode) {
     const granted = request.cookies.get(DEMO_ACCESS_COOKIE)?.value === requiredDemoCode;
     if (!granted) {

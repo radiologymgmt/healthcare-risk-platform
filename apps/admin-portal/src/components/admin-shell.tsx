@@ -12,6 +12,7 @@ import {
   Rocket,
   AlertTriangle,
   BookOpen,
+  LogOut,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -53,10 +54,23 @@ export function AdminShell({
     }
   }
 
-  const showDevControls = !isProduction || isDemoMode;
+  async function handleSignOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/demo-gate";
+  }
+
+  const isAuthenticatedDemoSession = [
+    "GOOGLE_SUPER_ADMIN",
+    "HARDCODED_ADMIN",
+    "ADMIN_USER",
+    "DEMO_USER",
+    "GOOGLE_OAUTH",
+  ].includes(authSource);
+  const isAdmin = actorRole === "ADMIN";
+  const showDevControls = (!isProduction || isDemoMode) && !isAuthenticatedDemoSession;
 
   const navItems = [
-    ...(showDevControls
+    ...(!isProduction || isDemoMode
       ? [
           {
             href: "/demo",
@@ -66,30 +80,34 @@ export function AdminShell({
           },
         ]
       : []),
-    {
-      href: "/rules",
-      label: "Clinical Rules",
-      icon: SlidersHorizontal,
-      active: pathname === "/" || pathname.startsWith("/rules"),
-    },
-    {
-      href: "/questions",
-      label: "Questions",
-      icon: ListChecks,
-      active: pathname.startsWith("/questions"),
-    },
-    {
-      href: "/analytics",
-      label: "Analytics & PDF",
-      icon: BarChart3,
-      active: pathname.startsWith("/analytics"),
-    },
-    {
-      href: "/governance",
-      label: "Governance",
-      icon: ShieldCheck,
-      active: pathname.startsWith("/governance"),
-    },
+    ...(isAdmin
+      ? [
+          {
+            href: "/rules",
+            label: "Clinical Rules",
+            icon: SlidersHorizontal,
+            active: pathname === "/" || pathname.startsWith("/rules"),
+          },
+          {
+            href: "/questions",
+            label: "Questions",
+            icon: ListChecks,
+            active: pathname.startsWith("/questions"),
+          },
+          {
+            href: "/analytics",
+            label: "Analytics & PDF",
+            icon: BarChart3,
+            active: pathname.startsWith("/analytics"),
+          },
+          {
+            href: "/governance",
+            label: "Governance",
+            icon: ShieldCheck,
+            active: pathname.startsWith("/governance"),
+          },
+        ]
+      : []),
     {
       href: "/docs",
       label: "Guides & Security",
@@ -171,6 +189,18 @@ export function AdminShell({
               </div>
             )}
 
+            {isAuthenticatedDemoSession && (
+              <button
+                id="admin-signout-btn"
+                type="button"
+                onClick={() => void handleSignOut()}
+                className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-xs font-semibold text-foreground hover:bg-secondary cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Sign Out
+              </button>
+            )}
+
             <button
               type="button"
               aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
@@ -229,6 +259,17 @@ export function AdminShell({
                   <option value="PROVIDER">RBAC: PROVIDER (403)</option>
                   <option value="PATIENT">RBAC: PATIENT (403)</option>
                 </select>
+              )}
+
+              {isAuthenticatedDemoSession && (
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-xs font-semibold text-foreground hover:bg-secondary cursor-pointer"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign Out
+                </button>
               )}
             </div>
           </div>

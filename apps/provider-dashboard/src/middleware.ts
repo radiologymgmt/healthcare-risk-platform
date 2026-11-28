@@ -1,9 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  DEMO_SESSION_COOKIE_NAME,
+  resolveDemoSessionSecret,
+  verifyDemoSessionToken,
+} from "@healthcare/shared-contracts";
 import { isAuthorizedProvider, resolveProviderIdentity } from "./lib/rbac";
 
-const PUBLIC_PATHS = ["/unauthorized", "/demo-gate", "/api/auth/demo-gate"];
+const PUBLIC_PATHS = ["/unauthorized", "/demo-gate", "/api/auth/demo-gate", "/brand"];
 
-export function middleware(request: NextRequest) {
+function resolveDemoHubGateUrl(request: NextRequest): string {
+  const adminBase = (
+    process.env.DEMO_ADMIN_GATE_URL?.trim() || "https://admin.demo.risk.radmgmt.org/demo-gate"
+  ).replace(/\/$/, "");
+  const fwdHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const fwdProto = request.headers.get("x-forwarded-proto") ?? "https";
+  const returnUrl = fwdHost
+    ? `${fwdProto}://${fwdHost}${request.nextUrl.pathname}${request.nextUrl.search}`
+    : request.nextUrl.href;
+  return `${adminBase}?next=${encodeURIComponent(returnUrl)}`;
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (
     pathname.startsWith("/_next") ||
@@ -14,8 +31,34 @@ export function middleware(request: NextRequest) {
   }
 
   const isDemoMode = process.env.DEMO_MODE === "true";
-  const requiredDemoCode = process.env.DEMO_ACCESS_CODE?.trim();
 
+  if (isDemoMode && process.env.DEMO_AUTH_ENFORCED === "true") {
+    const secret = resolveDemoSessionSecret(process.env);
+    const session = await verifyDemoSessionToken(
+      request.cookies.get(DEMO_SESSION_COOKIE_NAME)?.value,
+      secret,
+    );
+    if (!session || (!session.isSuperAdmin && !session.agreementSigned)) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { error: "Demo sign-in and agreement signature required." },
+          { status: 401 },
+        );
+      }
+      return NextResponse.redirect(resolveDemoHubGateUrl(request));
+    }
+
+    const reqHeaders = new Headers(request.headers);
+    reqHeaders.set("x-verified-actor-id", session.email);
+    // Invited Demo VIEWER users can explore the Provider Dashboard in demo mode
+    reqHeaders.set(
+      "x-verified-actor-role",
+      session.isSuperAdmin || session.role === "ADMIN" ? "ADMIN" : "PROVIDER",
+    );
+    return NextResponse.next({ request: { headers: reqHeaders } });
+  }
+
+  const requiredDemoCode = process.env.DEMO_ACCESS_CODE?.trim();
   if (isDemoMode && requiredDemoCode) {
     if (request.cookies.get("hrp_demo_access")?.value !== requiredDemoCode) {
       if (pathname.startsWith("/api/")) {

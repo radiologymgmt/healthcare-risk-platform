@@ -7,7 +7,10 @@ import {
   CheckCircle2,
   Code2,
   DatabaseBackup,
+  FileSignature,
   History,
+  KeyRound,
+  Lock,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -25,12 +28,31 @@ interface AdminUser {
   id: string;
   email: string;
   full_name: string;
-  role: "ADMIN" | "PROVIDER" | "COORDINATOR" | "AUDITOR";
+  role: "VIEWER" | "ADMIN" | "PROVIDER" | "COORDINATOR" | "AUDITOR";
+  organization: string | null;
   npi_number: string | null;
   specialty: string | null;
   is_active: boolean;
+  is_hardcoded_admin?: boolean;
+  requires_demo_agreement?: boolean;
+  has_password?: boolean;
+  agreement_signed_at?: string | null;
+  last_login_at?: string | null;
   created_by: string;
   created_at: string;
+}
+
+interface SignedAgreement {
+  id: string;
+  email: string;
+  full_name: string;
+  organization: string | null;
+  signed_date: string;
+  agreement_version: string;
+  agreements_accepted: string[];
+  agreement_hash: string;
+  ip_address: string | null;
+  signed_at: string;
 }
 
 interface AcceptedPayer {
@@ -81,6 +103,15 @@ interface SnapshotDiff {
 
 type GovTab = "users" | "payers" | "settings" | "snapshots";
 
+function generateReadablePassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$";
+  let out = "RadM-";
+  for (let i = 0; i < 10; i += 1) {
+    out += chars[Math.floor(Math.random() * chars.length)]!;
+  }
+  return out;
+}
+
 export function GovernanceStudio() {
   const [activeTab, setActiveTab] = useState<GovTab>("users");
   const [loading, setLoading] = useState(true);
@@ -90,16 +121,22 @@ export function GovernanceStudio() {
 
   // Data
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [agreements, setAgreements] = useState<SignedAgreement[]>([]);
   const [payers, setPayers] = useState<AcceptedPayer[]>([]);
   const [settings, setSettings] = useState<PlatformSetting[]>([]);
   const [snapshots, setSnapshots] = useState<ConfigSnapshot[]>([]);
 
-  // Tab 1: Create User form
+  // Tab 1: Create User form (defaults to VIEWER for Product Demo Viewing with Password)
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserName, setNewUserName] = useState("");
-  const [newUserRole, setNewUserRole] = useState<AdminUser["role"]>("PROVIDER");
+  const [newUserOrg, setNewUserOrg] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserRole, setNewUserRole] = useState<AdminUser["role"]>("VIEWER");
   const [newUserNpi, setNewUserNpi] = useState("");
   const [newUserSpecialty, setNewUserSpecialty] = useState("");
+  const [newUserRequiresAgreement, setNewUserRequiresAgreement] = useState(true);
+  const [passwordResetTargetId, setPasswordResetTargetId] = useState<string | null>(null);
+  const [passwordResetValue, setPasswordResetValue] = useState("");
 
   // Tab 2: Add Payer form
   const [showAddPayer, setShowAddPayer] = useState(false);
@@ -123,8 +160,9 @@ export function GovernanceStudio() {
     setLoading(true);
     setError(null);
     try {
-      const [uRes, pRes, sRes, snapRes] = await Promise.all([
+      const [uRes, aRes, pRes, sRes, snapRes] = await Promise.all([
         fetch("/api/admin/users", { cache: "no-store" }),
+        fetch("/api/admin/agreements", { cache: "no-store" }),
         fetch("/api/admin/payers", { cache: "no-store" }),
         fetch("/api/admin/settings", { cache: "no-store" }),
         fetch("/api/admin/snapshots", { cache: "no-store" }),
@@ -132,6 +170,10 @@ export function GovernanceStudio() {
       if (uRes.ok) {
         const d = (await uRes.json()) as { users?: AdminUser[] };
         setUsers(d.users ?? []);
+      }
+      if (aRes.ok) {
+        const d = (await aRes.json()) as { agreements?: SignedAgreement[] };
+        setAgreements(d.agreements ?? []);
       }
       if (pRes.ok) {
         const d = (await pRes.json()) as { payers?: AcceptedPayer[] };
@@ -182,17 +224,25 @@ export function GovernanceStudio() {
           email: newUserEmail.trim(),
           full_name: newUserName.trim(),
           role: newUserRole,
+          password: newUserPassword.trim() || undefined,
+          organization: newUserOrg.trim() || null,
           npi_number: newUserNpi.trim() || null,
           specialty: newUserSpecialty.trim() || null,
+          requires_demo_agreement: newUserRequiresAgreement,
         }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to create user");
+      const createdEmail = newUserEmail.trim();
       setNewUserEmail("");
       setNewUserName("");
+      setNewUserOrg("");
+      setNewUserPassword("");
       setNewUserNpi("");
       setNewUserSpecialty("");
-      setToast("User account created and recorded in HIPAA audit log.");
+      setToast(
+        `Created account for ${createdEmail} (${newUserRole}). Share their email & password to log in at admin.demo.risk.radmgmt.org/demo.`,
+      );
       await loadAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "User creation failed");
@@ -201,7 +251,10 @@ export function GovernanceStudio() {
     }
   }
 
-  async function handleUpdateUser(id: string, patch: Partial<AdminUser>) {
+  async function handleUpdateUser(
+    id: string,
+    patch: Partial<AdminUser> & { password?: string },
+  ) {
     setBusy(true);
     setError(null);
     setToast(null);
@@ -213,7 +266,13 @@ export function GovernanceStudio() {
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to update user");
-      setToast("User permissions updated.");
+      if (patch.password) {
+        setPasswordResetTargetId(null);
+        setPasswordResetValue("");
+        setToast("Password updated and hashed securely (scrypt).");
+      } else {
+        setToast("User permissions updated.");
+      }
       await loadAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "User update failed");
@@ -435,136 +494,339 @@ export function GovernanceStudio() {
       )}
 
       {/* ================================================================= */}
-      {/* TAB 1: USERS & RBAC DIRECTORY                                     */}
+      {/* TAB 1: USERS, PASSWORDS, DEMO VIEWERS & SIGNED AGREEMENTS         */}
       {/* ================================================================= */}
       {activeTab === "users" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          <Card className="lg:col-span-4">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <UserPlus className="h-4 w-4 text-primary" />
-                Create Platform User
-              </CardTitle>
-              <CardDescription>
-                Add clinical admins, ordering providers, imaging coordinators, or HIPAA auditors.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={(e) => void handleCreateUser(e)} className="space-y-3">
-                <label className="block space-y-1 text-xs font-medium">
-                  <span>Full Name *</span>
-                  <input
-                    required
-                    placeholder="e.g., Dr. Marcus Reed, MD"
-                    value={newUserName}
-                    onChange={(e) => setNewUserName(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs"
-                  />
-                </label>
-                <label className="block space-y-1 text-xs font-medium">
-                  <span>Organization Email *</span>
-                  <input
-                    required
-                    type="email"
-                    placeholder="m.reed@radmgmt.org"
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs"
-                  />
-                </label>
-                <label className="block space-y-1 text-xs font-medium">
-                  <span>RBAC Role *</span>
-                  <select
-                    value={newUserRole}
-                    onChange={(e) => setNewUserRole(e.target.value as AdminUser["role"])}
-                    className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs"
-                  >
-                    <option value="PROVIDER">PROVIDER (Workqueue, Orders &amp; Clinical PDFs)</option>
-                    <option value="ADMIN">ADMIN (Full Configuration &amp; Governance)</option>
-                    <option value="COORDINATOR">COORDINATOR (Scheduling &amp; Outreach)</option>
-                    <option value="AUDITOR">AUDITOR (Read-Only Compliance)</option>
-                  </select>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            <Card className="lg:col-span-4">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <UserPlus className="h-4 w-4 text-primary" />
+                  Create Product Viewer / Platform User
+                </CardTitle>
+                <CardDescription>
+                  Issue an account and password to allow evaluators or clinicians to sign in at{" "}
+                  <code>/demo</code> (non-admins must sign the NY Pre-Demo NDA &amp; Sandbox
+                  Agreement before entering).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={(e) => void handleCreateUser(e)} className="space-y-3">
                   <label className="block space-y-1 text-xs font-medium">
-                    <span>NPI Number</span>
+                    <span>Full Name *</span>
                     <input
-                      placeholder="10-digit NPI"
-                      value={newUserNpi}
-                      onChange={(e) => setNewUserNpi(e.target.value)}
-                      className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs font-mono"
-                    />
-                  </label>
-                  <label className="block space-y-1 text-xs font-medium">
-                    <span>Specialty</span>
-                    <input
-                      placeholder="Radiology"
-                      value={newUserSpecialty}
-                      onChange={(e) => setNewUserSpecialty(e.target.value)}
+                      id="create-user-name"
+                      required
+                      placeholder="e.g., Dr. Jordan Rivera"
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
                       className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs"
                     />
                   </label>
-                </div>
-                <Button type="submit" size="sm" className="w-full" disabled={busy}>
-                  <Plus className="h-3.5 w-3.5" />
-                  Create User Account
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                  <label className="block space-y-1 text-xs font-medium">
+                    <span>Email Address *</span>
+                    <input
+                      id="create-user-email"
+                      required
+                      type="email"
+                      placeholder="evaluator@hospital.org"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-xs font-medium">
+                    <span>Organization (Optional)</span>
+                    <input
+                      id="create-user-org"
+                      placeholder="e.g., Mount Sinai Imaging Group"
+                      value={newUserOrg}
+                      onChange={(e) => setNewUserOrg(e.target.value)}
+                      className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs"
+                    />
+                  </label>
+                  <div className="space-y-1 text-xs font-medium">
+                    <div className="flex items-center justify-between">
+                      <span>Login Password (min 8 chars) *</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewUserPassword(generateReadablePassword())}
+                        className="text-[11px] font-semibold text-[#127080] hover:underline cursor-pointer"
+                      >
+                        Generate Strong Password
+                      </button>
+                    </div>
+                    <input
+                      id="create-user-password"
+                      required
+                      minLength={8}
+                      type="text"
+                      placeholder="Create password for user"
+                      value={newUserPassword}
+                      onChange={(e) => setNewUserPassword(e.target.value)}
+                      className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs font-mono"
+                    />
+                  </div>
+                  <label className="block space-y-1 text-xs font-medium">
+                    <span>Access Role *</span>
+                    <select
+                      id="create-user-role"
+                      value={newUserRole}
+                      onChange={(e) => setNewUserRole(e.target.value as AdminUser["role"])}
+                      className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs"
+                    >
+                      <option value="VIEWER">
+                        VIEWER — Product Demo Access (Demo Hub, Patient, Mobile &amp; Provider)
+                      </option>
+                      <option value="PROVIDER">
+                        PROVIDER — Workqueue, Orders &amp; Clinical PDFs
+                      </option>
+                      <option value="ADMIN">ADMIN — Full Configuration &amp; Governance</option>
+                      <option value="COORDINATOR">COORDINATOR — Scheduling &amp; Outreach</option>
+                      <option value="AUDITOR">AUDITOR — Read-Only Compliance</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground pt-0.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newUserRequiresAgreement}
+                      onChange={(e) => setNewUserRequiresAgreement(e.target.checked)}
+                      className="h-4 w-4 accent-[#127080]"
+                    />
+                    <span>Require Pre-Demo NY NDA &amp; Sandbox Signature before entry</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block space-y-1 text-xs font-medium">
+                      <span>NPI (Optional)</span>
+                      <input
+                        placeholder="10-digit NPI"
+                        value={newUserNpi}
+                        onChange={(e) => setNewUserNpi(e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs font-mono"
+                      />
+                    </label>
+                    <label className="block space-y-1 text-xs font-medium">
+                      <span>Specialty</span>
+                      <input
+                        placeholder="Radiology"
+                        value={newUserSpecialty}
+                        onChange={(e) => setNewUserSpecialty(e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs"
+                      />
+                    </label>
+                  </div>
+                  <Button
+                    id="create-user-submit-btn"
+                    type="submit"
+                    size="sm"
+                    className="w-full"
+                    disabled={busy}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Create User &amp; Set Password
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
 
-          <Card className="lg:col-span-8">
+            <Card className="lg:col-span-8">
+              <CardHeader>
+                <CardTitle className="text-sm">Active &amp; Provisioned Users</CardTitle>
+                <CardDescription>
+                  Hardcoded Super-Admin (<code>radiologymgmt@gmail.com</code>) authenticates via
+                  Google, bypasses all agreements, and cannot be suspended or demoted. All user
+                  changes and password updates are written to immutable <code>audit_logs</code>.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2.5">
+                {users.map((u) => {
+                  const isLockedOwner = Boolean(u.is_hardcoded_admin);
+                  const isResetting = passwordResetTargetId === u.id;
+                  return (
+                    <div
+                      key={u.id}
+                      className={`rounded-lg border p-3.5 space-y-2.5 ${
+                        isLockedOwner ? "border-[#127080] bg-[#e4f4f7]/35" : "border-border bg-card"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-sm font-semibold text-foreground">
+                              {u.full_name}
+                            </span>
+                            <Badge variant={u.is_active ? "teal" : "outline"}>{u.role}</Badge>
+                            {isLockedOwner && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#0b2545] text-white">
+                                <Lock className="h-2.5 w-2.5" />
+                                HARDCODED SUPER-ADMIN · GOOGLE AUTH · EXEMPT
+                              </span>
+                            )}
+                            {!isLockedOwner && u.has_password && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                Password Set
+                              </span>
+                            )}
+                            {!isLockedOwner && u.agreement_signed_at && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                NY NDA Signed
+                              </span>
+                            )}
+                            {!isLockedOwner &&
+                              u.requires_demo_agreement &&
+                              !u.agreement_signed_at && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-950 border border-amber-300">
+                                  Agreement Pending
+                                </span>
+                              )}
+                            {!u.is_active && <Badge variant="acute">SUSPENDED</Badge>}
+                          </div>
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {u.email}
+                            {u.organization ? ` · ${u.organization}` : ""}
+                            {u.npi_number ? ` · NPI ${u.npi_number}` : ""}
+                            {u.specialty ? ` · ${u.specialty}` : ""}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => {
+                              if (isResetting) {
+                                setPasswordResetTargetId(null);
+                                setPasswordResetValue("");
+                              } else {
+                                setPasswordResetTargetId(u.id);
+                                setPasswordResetValue(generateReadablePassword());
+                              }
+                            }}
+                          >
+                            <KeyRound className="h-3 w-3" />
+                            {isResetting ? "Cancel" : u.has_password ? "Reset Password" : "Set Password"}
+                          </Button>
+                          {!isLockedOwner && (
+                            <>
+                              <select
+                                aria-label={`Change role for ${u.full_name}`}
+                                disabled={busy}
+                                value={u.role}
+                                onChange={(e) =>
+                                  void handleUpdateUser(u.id, {
+                                    role: e.target.value as AdminUser["role"],
+                                  })
+                                }
+                                className="h-8 rounded-md border border-input bg-card px-2 text-xs"
+                              >
+                                <option value="VIEWER">VIEWER</option>
+                                <option value="PROVIDER">PROVIDER</option>
+                                <option value="COORDINATOR">COORDINATOR</option>
+                                <option value="AUDITOR">AUDITOR</option>
+                                <option value="ADMIN">ADMIN</option>
+                              </select>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy}
+                                onClick={() =>
+                                  void handleUpdateUser(u.id, { is_active: !u.is_active })
+                                }
+                              >
+                                {u.is_active ? "Suspend" : "Reactivate"}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {isResetting && (
+                        <div className="pt-2 border-t border-border flex flex-wrap items-center gap-2">
+                          <input
+                            type="text"
+                            minLength={8}
+                            value={passwordResetValue}
+                            onChange={(e) => setPasswordResetValue(e.target.value)}
+                            placeholder="New password (min 8 chars)"
+                            className="flex-1 min-w-[200px] h-8 rounded-md border border-input bg-white px-2.5 text-xs font-mono"
+                          />
+                          <Button
+                            size="sm"
+                            disabled={busy || passwordResetValue.trim().length < 8}
+                            onClick={() =>
+                              void handleUpdateUser(u.id, { password: passwordResetValue.trim() })
+                            }
+                          >
+                            <Save className="h-3 w-3" />
+                            Save Password
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Signed Pre-Demo Agreements Ledger */}
+          <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Active &amp; Provisioned Users</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileSignature className="h-4 w-4 text-[#127080]" />
+                Signed Pre-Demo Agreements Ledger (New York MNDA &amp; Synthetic Sandbox —{" "}
+                {agreements.length})
+              </CardTitle>
               <CardDescription>
-                Role changes and account suspensions are written immediately to immutable HIPAA
-                audit_logs.
+                Immutable record of every evaluator who electronically agreed and signed prior to
+                accessing the Demo Hub.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2.5">
-              {users.map((u) => (
-                <div
-                  key={u.id}
-                  className="rounded-lg border border-border p-3.5 flex flex-wrap items-center justify-between gap-3 bg-card"
-                >
-                  <div className="space-y-0.5 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground">{u.full_name}</span>
-                      <Badge variant={u.is_active ? "teal" : "outline"}>{u.role}</Badge>
-                      {!u.is_active && <Badge variant="acute">SUSPENDED</Badge>}
-                    </div>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      {u.email}
-                      {u.npi_number ? ` · NPI ${u.npi_number}` : ""}
-                      {u.specialty ? ` · ${u.specialty}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      aria-label={`Change role for ${u.full_name}`}
-                      disabled={busy}
-                      value={u.role}
-                      onChange={(e) =>
-                        void handleUpdateUser(u.id, { role: e.target.value as AdminUser["role"] })
-                      }
-                      className="h-8 rounded-md border border-input bg-card px-2 text-xs"
-                    >
-                      <option value="ADMIN">ADMIN</option>
-                      <option value="PROVIDER">PROVIDER</option>
-                      <option value="COORDINATOR">COORDINATOR</option>
-                      <option value="AUDITOR">AUDITOR</option>
-                    </select>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => void handleUpdateUser(u.id, { is_active: !u.is_active })}
-                    >
-                      {u.is_active ? "Suspend" : "Reactivate"}
-                    </Button>
-                  </div>
+            <CardContent>
+              {agreements.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-3">
+                  No evaluators have signed yet. Once an invited user signs in at{" "}
+                  <code>/demo-gate</code> and signs the NY Pre-Demo contracts, their Full Name,
+                  Email, Date, IP Address, and SHA-256 signature hash will appear here.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-border bg-secondary/50 text-[#0b2545]">
+                        <th className="py-2 px-3 font-bold">Full Name</th>
+                        <th className="py-2 px-3 font-bold">Email</th>
+                        <th className="py-2 px-3 font-bold">Organization</th>
+                        <th className="py-2 px-3 font-bold">Signed Date</th>
+                        <th className="py-2 px-3 font-bold">Version</th>
+                        <th className="py-2 px-3 font-bold">IP / UTC Timestamp</th>
+                        <th className="py-2 px-3 font-bold">SHA-256 Proof</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border text-muted-foreground">
+                      {agreements.map((ag) => (
+                        <tr key={ag.id} className="hover:bg-secondary/20">
+                          <td className="py-2 px-3 font-semibold text-[#0b2545]">{ag.full_name}</td>
+                          <td className="py-2 px-3 font-mono text-[11px]">{ag.email}</td>
+                          <td className="py-2 px-3">{ag.organization ?? "—"}</td>
+                          <td className="py-2 px-3 font-mono">{ag.signed_date}</td>
+                          <td className="py-2 px-3">
+                            <Badge variant="teal">{ag.agreement_version}</Badge>
+                          </td>
+                          <td className="py-2 px-3 font-mono text-[11px]">
+                            {ag.ip_address ?? "—"} · {new Date(ag.signed_at).toLocaleString()}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-[10px]">
+                            {ag.agreement_hash.slice(0, 14)}…
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
         </div>

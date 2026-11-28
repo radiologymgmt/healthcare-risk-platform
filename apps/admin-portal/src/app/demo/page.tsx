@@ -26,7 +26,7 @@ export default async function DemoPage() {
       isProduction={process.env.NODE_ENV === "production"}
       isDemoMode={isDemoMode}
     >
-      <DemoHub urls={urls} />
+      <DemoHub urls={urls} isAdmin={actorRole === "ADMIN"} />
     </AdminShell>
   );
 }

@@ -12,6 +12,7 @@ import {
 import { evaluateClinicalRules, type ClinicalRuleRecord } from "./evaluator.js";
 import { writeAuditLog } from "./audit.js";
 import { createAdminRouter } from "./admin-routes.js";
+import { createDemoAuthRouter } from "./demo-auth-routes.js";
 import { createPatientAndMagicLinkRouter } from "./patient-routes.js";
 import { createWorkqueueRouter } from "./workqueue-routes.js";
 
@@ -549,6 +550,9 @@ export function createApp(
 
   // Mount Component 5 Provider Workqueue & Order Approval API (/api/v1/workqueue)
   app.use("/api/v1/workqueue", createWorkqueueRouter(pool, logger));
+
+  // Mount Demo Hub Authentication & Electronic Pre-Demo Agreement Signing API (/api/v1/demo-auth/*)
+  app.use("/api/v1/demo-auth", createDemoAuthRouter(pool, logger));
 
   // Mount RBAC-protected Admin Portal CRUD, Analytics & PDF API (/api/v1/admin/*)
   app.use("/api/v1/admin", createAdminRouter(pool, logger));

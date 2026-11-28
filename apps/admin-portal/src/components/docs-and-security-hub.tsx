@@ -7,6 +7,7 @@ import {
   Layers,
   Printer,
   Rocket,
+  Scale,
   ShieldAlert,
   SlidersHorizontal,
   Stethoscope,
@@ -16,6 +17,7 @@ import {
   ClinicalWalkthroughAndManual,
   PatientHowToManual,
 } from "@/components/docs/clinical-patient-admin-guides";
+import { ContractsAndLegalTab } from "@/components/docs/contracts-legal-tab";
 import { ItArchitectureWalkthrough } from "@/components/docs/it-architecture-guide";
 import {
   DemoSecurityAssessment,
@@ -28,7 +30,8 @@ type DocTab =
   | "admin"
   | "it-architecture"
   | "demo-security"
-  | "prod-deployment";
+  | "prod-deployment"
+  | "contracts";
 
 const TABS: Array<{
   id: DocTab;
@@ -79,6 +82,13 @@ const TABS: Array<{
     audience: "CISO, Cloud Architects & Go-Live Board",
     icon: Rocket,
   },
+  {
+    id: "contracts",
+    label: "Pre-Demo & Pre-Prod Contracts (NY)",
+    shortLabel: "Contracts (NY)",
+    audience: "Legal Counsel, NDA, BAA & MSA Drafts",
+    icon: Scale,
+  },
 ];
 
 export function DocsAndSecurityHub() {
@@ -92,15 +102,16 @@ export function DocsAndSecurityHub() {
         <div className="space-y-1.5 max-w-3xl">
           <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-teal-200">
             <BookOpen className="h-3.5 w-3.5" />
-            RadManagement LLC · Enterprise Operations, Training &amp; Security Binder
+            RadManagement LLC · Enterprise Operations, Legal &amp; Security Binder
           </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-            Walkthrough Guides, How-To Manuals &amp; HIPAA Security Reviews
+            Walkthrough Guides, How-To Manuals, Contracts &amp; HIPAA Security Reviews
           </h1>
           <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-            Role-based operating manuals for clinicians, patients, and administrators, full IT
-            architecture runbooks, live security assessment of <code>hrp-synthetic-demo-01</code>, and
-            the exact HIPAA production deployment blueprint for <code>hrp-prod-01</code>.
+            Role-based operating manuals for clinicians, patients, and administrators, IT
+            architecture runbooks, New York Pre-Demo &amp; Pre-Production legal contract drafts,
+            live security assessment of <code>hrp-synthetic-demo-01</code>, and exact HIPAA
+            production blueprint for <code>hrp-prod-01</code>.
           </p>
         </div>
 
@@ -115,7 +126,7 @@ export function DocsAndSecurityHub() {
                 : "bg-white/10 text-white border-white/25 hover:bg-white/20"
             }`}
           >
-            {binderMode ? "Showing Complete 6-Part Binder" : "View All 6 Guides (Binder Mode)"}
+            {binderMode ? "Showing Complete 7-Part Binder" : "View All 7 Sections (Binder Mode)"}
           </button>
           <button
             id="docs-print-btn"
@@ -129,12 +140,12 @@ export function DocsAndSecurityHub() {
         </div>
       </div>
 
-      {/* 6-Tab Navigation Bar */}
+      {/* 7-Tab Navigation Bar */}
       {!binderMode && (
         <div
           role="tablist"
-          aria-label="Documentation and Security sections"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5 print:hidden"
+          aria-label="Documentation, Contracts and Security sections"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2.5 print:hidden"
         >
           {TABS.map((tab) => {
             const Icon = tab.icon;
@@ -180,6 +191,7 @@ export function DocsAndSecurityHub() {
         {(binderMode || activeTab === "prod-deployment") && (
           <ProductionDeploymentPlanAndSecurityReview />
         )}
+        {(binderMode || activeTab === "contracts") && <ContractsAndLegalTab />}
       </div>
     </div>
   );
